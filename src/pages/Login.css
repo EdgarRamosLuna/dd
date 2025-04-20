@@ -1,0 +1,137 @@
+/* src/pages/Login.css */
+
+/* Estilos del header */
+.tituloHome .toolbar-background {
+  background: #ff4d30 !important;
+}
+
+.tituloHome ion-title {
+  color: white !important;
+}
+
+ion-header, ion-toolbar {
+  height: auto;
+}
+
+.logoHeader {
+  width: 80px;
+  margin-left: 10px;
+  position: relative;
+  top: 3px;
+}
+
+/* Estilos del contenido */
+ion-content {
+  --background: url('../assets/imgs/fondoLogin.jpg') no-repeat center center / cover;
+}
+
+.contLogin {
+  background: white;
+  box-sizing: border-box;
+  position: relative;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 75%;
+  margin-left: 12.5%;
+  border-radius: 20px;
+}
+
+.lblIngresa {
+  width: 100%;
+  display: block;
+  float: left;
+  font-size: 25px;
+  color: #ff4d30;
+  font-family: 'AllerBold', sans-serif;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.lblTexto {
+  width: 100%;
+  font-size: 18px;
+  border-bottom: 1px solid #E9E9E9;
+  margin-top: 10px;
+  padding-bottom: 10px;
+  font-weight: bold;
+  border-bottom: none;
+  color: black;
+  font-family: 'AllerBold', sans-serif;
+  float: left;
+}
+
+.inputTexto {
+  height: 36px;
+  margin-top: 0px;
+  margin-bottom: 16px !important;
+  width: 100%;
+  border: none;
+  color: #707070;
+  border-bottom: 1px solid #707070;
+  font-size: 16px;
+  padding-left: 9px;
+  background: white;
+  border-radius: 0px;
+  float: left;
+}
+
+.contBotonCentrado {
+  width: 100%;
+  float: left;
+}
+
+.clears {
+  clear: both;
+}
+
+.contBgBlanco {
+  width: 100%;
+  float: left;
+  background: white;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  box-sizing: border-box;
+  padding: 25px;
+}
+
+.contBgAzul {
+  width: 100%;
+  float: left;
+  background: #2facff;
+  height: 110px;
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+  box-sizing: border-box;
+  padding: 25px;
+  text-align: center;
+}
+
+.btnLogin {
+  background: white;
+  font-family: 'AllerBold', sans-serif;
+  box-sizing: border-box;
+  padding: 12px 35px;
+  font-size: 18px;
+  box-shadow: 2px 2px 6px 0px rgba(0,0,0,0.55);
+  cursor: pointer;
+}
+
+.btnLogin:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Estilos para las alertas */
+.alertaSuccess .alert-head {
+  padding: 0;
+}
+
+.headerSuccess {
+  text-align: center;
+  padding: 10px;
+}
+
+.lblHey {
+  font-size: 18px;
+  font-weight: bold;
+}

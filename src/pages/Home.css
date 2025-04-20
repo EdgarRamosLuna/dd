@@ -1,0 +1,442 @@
+/* src/pages/Home.css */
+
+/* Estilos generales */
+ion-content {
+    --background: #e5e5e5 !important;
+  }
+  
+  .tituloHome {
+    --background: #ff4d30 !important;
+    --color: white !important;
+    display: flex;
+  }
+  
+  ion-header, ion-toolbar {
+    height: auto;
+  }
+  
+  .logoHeader {
+    width: 80px;
+    margin-left: 10px;
+    position: relative;
+    top: 3px;
+  }
+  
+/* Header Styles */
+.header-toolbar {
+  --background: #ff5733; /* Matching the orange/red color from the image */
+  --color: white;
+  --border-width: 0;
+  --min-height: 60px;
+  --padding-start: 16px;
+  --padding-end: 16px;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0 16px;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+}
+
+.logo-header {
+  height: 40px;
+  margin-right: 10px;
+}
+
+.logout-button {
+  background: transparent;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.logout-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Search Styles */
+.search-container {
+  position: relative;
+  margin-bottom: 0;
+  padding: 16px;
+  width: 100%;
+}
+
+.custom-searchbar {
+  --background: #f5f5f5;
+  --border-radius: 8px;
+  --box-shadow: none;
+  --placeholder-color: #666;
+  --icon-color: #666;
+}
+
+.spinner-container {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  margin: 0;
+  color: #666;
+}
+
+/* Institution List */
+.institutions-container {
+  margin-bottom: 20px;
+  margin: 0;
+  padding: 16px;
+}
+
+.institution-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.institution-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.institution-info {
+  flex: 1;
+}
+
+.institution-name {
+  font-weight: 600;
+  font-size: 16px;
+  margin: 0 0 4px 0;
+  color: #333;
+}
+
+.institution-code {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-check {
+  background: #e6f7e6;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-check img {
+  width: 18px;
+  height: 18px;
+}
+
+/* Action Buttons */
+.actions-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 0;
+  padding: 16px;
+}
+
+.action-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 8px;
+  color: white;
+  font-weight: 500;
+}
+
+.action-button img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.update-button {
+  background: #4285f4;
+}
+
+.save-button {
+  background: #34a853;
+}
+
+.upload-button {
+  background: #ea4335;
+}
+
+.action-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Toast Styles */
+.toastVerde {
+  --background: #34a853;
+  --color: white;
+}
+
+.alertaSuccess {
+  --background: white;
+  --max-width: 400px;
+}
+
+.alertaError {
+  --background: white;
+  --max-width: 400px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .actions-container {
+    grid-template-columns: 1fr;
+  }
+
+  .institution-card {
+    padding: 12px;
+  }
+
+  .institution-name {
+    font-size: 15px;
+  }
+
+  .institution-code {
+    font-size: 13px;
+  }
+}
+
+/* Maintain compatibility with existing classes */
+.tituloHome {
+  --background: #ff5733;
+  --color: white;
+}
+
+.datosCont {
+  margin-bottom: 20px;
+}
+
+.pNoHayInst {
+  text-align: center;
+  padding: 30px 20px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  margin: 20px 0;
+  color: #666;
+}
+
+.contInstitucion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.contInstitucion:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.pNomEsc {
+  font-weight: 600;
+  font-size: 16px;
+  margin: 0;
+  color: #333;
+}
+
+.areaCheck {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkInst {
+  width: 18px;
+  height: 18px;
+}
+
+.cargarCont {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.btnCont {
+  display: flex;
+  justify-content: center;
+}
+
+.btnD,
+.btnN,
+.btnImagenes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 8px;
+  color: white;
+  font-weight: 500;
+  width: 100%;
+}
+
+.btnD {
+  background: #4285f4;
+}
+
+.btnN {
+  background: #34a853;
+}
+
+.btnImagenes {
+  background: #ea4335;
+}
+
+.btnD:hover,
+.btnN:hover,
+.btnImagenes:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btnD img,
+.btnN img,
+.btnImagenes img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.lblCerrarSesion {
+  background: transparent;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.lblCerrarSesion:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.logoHeader {
+  height: 40px;
+  margin-right: 10px;
+}
+
+.buscador {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+/* Aplica a todos los ion-content, o añade tu propia clase en lugar de ion-content */
+ion-content.no-padding {
+  --padding-top:      0px !important;
+  --padding-bottom:   0px !important;
+  --padding-start:    1em !important;
+  --padding-end:      1em !important;
+  --offset-top:       0px !important; /* opcional */
+  --keyboard-offset:  0px !important; /* opcional */
+}
+
+/* Alert personalizado para cierre de sesión */
+.alert-android .alert-wrapper {
+  border: 2px solid #ff9800;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  max-width: 400px;
+}
+
+.alert-android .alert-button-confirm {
+  background-color: #d32f2f;
+  color: white;
+  font-weight: bold;
+  border-radius: 6px;
+  padding: 8px 16px;
+  margin: 8px 4px;
+  text-transform: uppercase;
+  font-size: 14px;
+}
+
+.alert-android .alert-button-cancel {
+  background-color: transparent;
+  color: #666;
+  border: 1px solid #ccc;
+  font-weight: normal;
+  border-radius: 6px;
+  padding: 8px 16px;
+  margin: 8px 4px;
+  text-transform: uppercase;
+  font-size: 14px;
+}
+
+.alert-android .alert-button-group {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.alert-android .alert-message {
+  font-size: 15px;
+  color: #444;
+  margin-top: 8px;
+  margin-bottom: 16px;
+  text-align: justify;
+}
+
+.alert-android .alert-title {
+  font-weight: bold;
+  font-size: 18px;
+  color: #333;
+}

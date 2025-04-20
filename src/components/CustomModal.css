@@ -1,0 +1,66 @@
+/* CustomAlert.css */
+
+.custom-alert-modal {
+  --height: auto;
+  --width: 90%;
+  --border-radius: 16px;
+  --background: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  --background: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.alert-container {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.alert-image-container {
+  margin-bottom: 1rem;
+}
+
+.alert-image {
+  width: 48px;
+  height: 48px;
+}
+
+.alert-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #d9534f; /* rojo alerta */
+}
+
+.alert-message {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.alert-button-container {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.alert-button {
+  --background: #007bff;
+  --color: #fff;
+  --border-radius: 12px;
+  text-transform: capitalize;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+}
+
+.alert-button.ion-color-medium {
+  --background: #adb5bd;
+}

@@ -1,0 +1,71 @@
+.custom-alert-modal {
+  --border-radius: 16px;
+  --width: 80%;
+  --max-width: 320px;
+  --height: auto;
+  --box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.custom-alert-modal .modal-content {
+  --background: white;
+  --padding-top: 20px;
+  --padding-bottom: 20px;
+  --padding-start: 20px;
+  --padding-end: 20px;
+}
+
+.alert-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+}
+
+.alert-image-container {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.alert-image {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.alert-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #333;
+}
+
+.alert-message {
+  font-size: 14px;
+  margin: 0 0 20px 0;
+  color: #666;
+  line-height: 1.4;
+}
+
+.alert-button-container {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.alert-button {
+  margin: 8px 0;
+  --border-radius: 8px;
+  --padding-top: 12px;
+  --padding-bottom: 12px;
+  font-weight: 500;
+}
+
+/* Style for the OK button like in the screenshot */
+ion-button.alert-button {
+  --background: #2196f3;
+  --color: white;
+  --box-shadow: none;
+  text-transform: none;
+}

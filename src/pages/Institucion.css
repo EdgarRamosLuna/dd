@@ -1,0 +1,277 @@
+/* src/pages/Institucion.css */
+
+/* Estilos generales */
+ion-content {
+    --background: #e5e5e5 !important;
+  }
+  
+  .tituloHomeInstitucion {
+    --background: #ff4d30 !important;
+    --color: white !important;
+    height: auto;
+    display: flex;    
+  }
+  .textHeaderContainer{
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    padding-left: 5%;
+  }
+  
+  .intitucionHeader {
+    height: 190px;
+    color: white;
+  }
+  
+  /* Estilos del encabezado */
+  .nomEscCont {
+    width: 100%;
+  }
+  
+  .nomEscTxt {
+    font-family: 'AllerBold', sans-serif !important;
+    font-size: 26px;
+    float: left;
+    width: 100%;
+    margin-bottom: 5px;
+  }
+  
+  .spanHeaderBold {
+    font-family: 'AllerBold', sans-serif !important;
+    font-size: 18px;
+  }
+  
+  .spanHeaderRegular {
+    font-family: 'AllerRegular', sans-serif !important;
+    font-size: 17px;
+  }
+  
+  .linea {
+    float: left;
+    height: 5px;
+    background: white;
+    width: 100px;
+  }
+  
+  .dataEscCont {
+    width: 100%;
+    float: left;
+    margin-top: 5px;
+  }
+  
+  .datEscCont_1, .datEscCont_2 {
+    margin-bottom: 5px;
+  }
+  
+  .datEscTxt, .datEscTxt2 {
+    margin-bottom: 3px;
+  }
+  
+  /* Estilos de la tabla */
+  .contTabla {
+    width: 100%;
+    float: left;
+    background: #fff;
+    margin-top: 5%;
+    margin-bottom: 5%;
+    box-sizing: border-box;
+    padding: 3%;
+    border-radius: 5px;
+    background-color: rgb(255, 255, 255);
+    box-shadow: 0px 5px 10px 0px rgba(49, 49, 49, 0.18);
+    overflow-x: scroll;
+  }
+  
+  #tablaProductos {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  #tablaProductos thead td {
+    font-family: 'AllerBold', sans-serif;
+    font-size: 17px;
+    border-bottom: 1px solid darkgrey;
+    padding-bottom: 5px;
+  }
+  
+  #tablaProductos tbody td {
+    font-size: 15px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-right: 5px;
+  }
+  
+  .tdProducto {
+    width: 40% !important;
+  }
+  
+  .textInputProducto {
+    border: 1px solid lightgray;
+    width: 80px;
+    padding: 3px;
+    text-align: right;
+  }
+  
+  .btnMax {
+    --background: #0076a3;
+    --color: white;
+    font-size: 15px;
+    height: 26px;
+    margin: 0;
+    --padding-start: 8px;
+    --padding-end: 8px;
+  }
+  
+  /* Estilos de botones y contenedores */
+  .contBotonCentrado {
+    text-align: center;
+    width: 100%;
+    float: left;
+    margin-bottom: 10px;
+  }
+  
+  .btnGuardarProductos {
+    --background: #8dc63f;
+    --color: #fff;
+    font-size: 21px;
+    font-family: 'AllerBold', sans-serif;
+    height: 60px;
+    min-width: 150px;
+    width: 35%;
+    margin: 0 auto;
+  }
+  
+  .spanClave {
+    font-size: 18px;
+  }
+  
+  /* Estilos para imágenes */
+  .contImagenes, .contImagenesGuardadas {
+    width: 100%;
+    float: left;
+    margin-bottom: 10px;
+    display: flex;
+    flex-wrap: wrap;
+  }
+  
+  .imgPreview {
+    width: 33%;
+    margin-right: 0.33%;
+    float: left;
+    margin-bottom: 10px;
+  }
+  
+  .btnCamara {
+    --background: #646464;
+    --color: #fff;
+    height: 60px;
+    min-width: 150px;
+    width: 35%;
+    margin: 0 auto;
+  }
+  
+  /* Estilos para campos de texto */
+  .contDatosExtra {
+    width: 100%;
+    float: left;
+    margin-bottom: 20px;
+  }
+  
+  .lblObs {
+    display: block;
+    width: 100%;
+    float: left;
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+  
+  .textObservaciones {
+    width: 100%;
+    float: left;
+    height: 100px;
+    margin-bottom: 20px;
+    box-sizing: border-box;
+    padding: 10px;
+    font-size: 17px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  
+  .inputQuienRecibe {
+    width: 100%;
+    float: left;
+    height: 45px;
+    font-size: 17px;
+    box-sizing: border-box;
+    padding-left: 10px;
+    padding-right: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  
+  .icoCamara {
+    width: 37px;
+  }
+  
+  .contAbajo {
+    margin-bottom: 80px;
+  }
+  
+  /* Media queries para dispositivos pequeños */
+  @media all and (max-width: 400px) {
+    .nomEscTxt {
+      font-size: 20px;
+    }
+    
+    .linea {
+      height: 2px;
+    }
+    
+    .spanHeaderBold {
+      font-size: 15px;
+    }
+    
+    .spanHeaderRegular {
+      font-size: 14px;
+    }
+
+    ion-header, ion-toolbar {
+      height: auto;
+      /* height: 150px !important; */
+    }
+    
+    ion-content {
+      --padding-top: 150px !important;
+    }
+  }
+  
+  /* Ajustes específicos para Ionic React */
+  ion-content {
+    --padding-top: 190px;
+  }
+  
+  ion-back-button {
+    --color: white;
+  }
+  
+  /* Ajustes para inputs de Ionic */
+  ion-input.textInputProducto {
+    --padding-start: 3px;
+    --padding-end: 3px;
+    --padding-top: 3px;
+    --padding-bottom: 3px;
+    --text-align: right;
+  }
+  
+  ion-textarea.textObservaciones {
+    --padding: 10px;
+  }
+  
+  ion-input.inputQuienRecibe {
+    --padding-start: 10px;
+    --padding-end: 10px;
+  }
+  
+  

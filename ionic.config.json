@@ -1,0 +1,8 @@
+{
+  "name": "despensas-react",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite",
+  "id": "30bcdefb"
+}
