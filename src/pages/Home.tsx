@@ -17,7 +17,7 @@ import {
 } from "@ionic/react";
 import { useHistory } from "react-router-dom";
 
-import { useDistribucion } from "../hooks/useDistribucion";
+
 import { Preferences } from "@capacitor/preferences";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Http } from "@capacitor-community/http";
@@ -26,6 +26,7 @@ import "./Home.css";
 import { useUsuario } from "../contexts/UsuarioContext";
 
 import { Capacitor } from "@capacitor/core";
+import { useDistribucionHook } from "../hooks/useDistribucionHook";
 
 const Home: React.FC = () => {
   // Estados equivalentes a las propiedades de la clase
@@ -69,29 +70,14 @@ const Home: React.FC = () => {
 
   const { idUsuario, cerrarSesion: cerrarSesionUsuario } = useUsuario();
   const { distDatos, getDatosDist, subirDatosDist, filterItems } =
-    useDistribucion();
+    useDistribucionHook();
 
-  // // Equivalente a ionViewDidEnter
-  // useEffect(() => {
-  //   setSearchTerm("");
-
-  //   if (distDatos.length !== 0) {
-  //     setFilteredItems("");
-
-  //     // No necesitamos el equivalente a searchControl.valueChanges.debounceTime
-  //     // ya que lo manejamos con el evento onSearchInput y setTimeout
-  //   } else {
-  //     setSinInstituciones(true);
-  //   }
-
-  //   // Este efecto se ejecuta cuando el componente se monta y cuando distDatos cambia
-  // }, [distDatos]);
 
   // Cada vez que cambien distDatos O searchTerm, recalcula la lista.
   useEffect(() => {
     const term = searchTerm.trim().toLowerCase();
     let result: any[];
-
+    
     if (term === "") {
       // Sin filtro, muestro TODO
       result = distDatos;

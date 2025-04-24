@@ -26,6 +26,7 @@ const Institucion: React.FC = () => {
   // Obtener parámetros de la URL y datos de la ubicación
   const { id } = useParams<InstitucionParams>();
   const location = useLocation();
+  console.log("🚀 ~ location:", location)
   const { datosInst: institucionData } = (location.state as any) || {};
 
   // Usar el hook personalizado
