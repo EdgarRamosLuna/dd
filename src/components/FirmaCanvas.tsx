@@ -1,11 +1,10 @@
-// src/components/FirmaCanvas.tsx
 import React, { useRef, useEffect, useState } from "react";
 import { IonButton, IonIcon } from "@ionic/react";
 import { saveOutline, trashOutline } from "ionicons/icons";
 
 interface FirmaCanvasProps {
   onGuardarFirma: (dataUrl: string) => void;
-  altura?: number; // opcional: altura en píxeles
+  altura?: number;
 }
 
 const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
@@ -15,21 +14,21 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contenedorRef = useRef<HTMLDivElement>(null);
   const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
+  const isDrawing = useRef(false);
 
-  // Ajusta el tamaño del canvas al 100% del ancho del contenedor
   const ajustarTamaño = () => {
     const canvas = canvasRef.current;
     const contenedor = contenedorRef.current;
     if (!canvas || !contenedor) return;
 
-    const anchoDisponible = contenedor.offsetWidth;
-    canvas.width = anchoDisponible;
+    canvas.width = contenedor.offsetWidth;
     canvas.height = altura;
 
     const contexto = canvas.getContext("2d");
     if (contexto) {
       contexto.lineCap = "round";
       contexto.lineWidth = 2;
+      contexto.strokeStyle = "#000";
       setCtx(contexto);
     }
   };
@@ -42,35 +41,40 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
     };
   }, []);
 
-  // Inicia un nuevo trazado
-  const comenzarDibujo = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!ctx) return;
-    ctx.beginPath();
-
+  const getCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    ctx.moveTo(x, y);
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
   };
 
-  // Dibuja mientras se mantiene presionado el botón izquierdo
+  const comenzarDibujo = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!ctx) return;
+    const { x, y } = getCoords(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    isDrawing.current = true;
+  };
+
   const dibujar = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!ctx || e.buttons !== 1) return;
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    if (!ctx || !isDrawing.current) return;
+    const { x, y } = getCoords(e);
     ctx.lineTo(x, y);
     ctx.stroke();
   };
 
-  // Limpia todo el contenido del canvas
-  const limpiarCanvas = () => {
-    if (!ctx || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const detenerDibujo = () => {
+    if (!ctx) return;
+    isDrawing.current = false;
+    ctx.closePath();
   };
 
-  // Convierte el canvas a base64 y avisa al padre
+  const limpiarCanvas = () => {
+    if (!ctx || !canvasRef.current) return;
+    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+  };
+
   const guardarFirma = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -79,16 +83,19 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
   };
 
   return (
-   <div ref={contenedorRef} style={{ width: "100%" }}>
+    <div ref={contenedorRef} style={{ width: "100%" }}>
       <canvas
         ref={canvasRef}
         style={{
           border: "1px solid #000",
           background: "#fff",
           display: "block",
+          width: "100%",
         }}
         onMouseDown={comenzarDibujo}
         onMouseMove={dibujar}
+        onMouseUp={detenerDibujo}
+        onMouseLeave={detenerDibujo}
       />
       <div style={{ marginTop: 10, display: "flex", gap: "0.5rem" }}>
         <IonButton onClick={guardarFirma}>
