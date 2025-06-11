@@ -299,14 +299,14 @@ const Home: React.FC = () => {
       const { value } = await Preferences.get({ key: "imagenes_subir" });
       if (!value) {
         throw new Error("No hay imágenes por guardar");
-      }
-      const list: Array<{ inst_id: string; imagenes: string[] }> =
-        JSON.parse(value);
+      }      
+      const list: Array<{ inst_id: string; imagenes: string[]; firma: string }> =
+        JSON.parse(value);      
       if (list.length === 0) {
         throw new Error("Lista vacía");
       }
 
-      for (const { inst_id, imagenes } of list) {
+      for (const { inst_id, imagenes, firma  } of list) {
         for (const imagePath of imagenes) {
           // 1) extraer nombre
           const fileName = imagePath.substring(imagePath.lastIndexOf("/") + 1);
@@ -349,6 +349,34 @@ const Home: React.FC = () => {
             path: fileName,
             directory: Directory.Data,
           });
+        }
+        if (firma) {
+          const matches = firma.match(/^data:image\/(\w+);base64,(.+)$/);
+          if (!matches) throw new Error("Firma no es base64 válida");
+
+          const contentType = matches[1];
+          const base64Data = matches[2];
+          const binary = atob(base64Data);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], { type: `image/${contentType}` });
+
+          const fdFirma = new FormData();
+          fdFirma.append("file", blob, `firma_${Date.now()}.${contentType}`);
+          fdFirma.append("firmaBase64", firma); // importante para PHP
+          fdFirma.append("inst_id", inst_id); // también necesario en backend
+
+          const respFirma = await fetch(`${URL_SERVICIOS}usuario/subir_imagenes/${inst_id}`, {
+            method: "POST",
+            body: fdFirma,
+          });
+
+          if (!respFirma.ok) {
+            const text = await respFirma.text();
+            throw new Error(`Error subiendo firma: ${text}`);
+          }
         }
       }
 
