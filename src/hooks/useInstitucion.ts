@@ -140,18 +140,6 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       return;
     }
 
-    // Obtener fecha y hora actual
-    const today = new Date();
-    const date =
-      today.getFullYear() +
-      "-" +
-      (today.getMonth() + 1) +
-      "-" +
-      today.getDate();
-    const time =
-      today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
-    const dateTime = date + " " + time;
-
     // Verificar que se haya ingresado quien recibe
     if (!datosInst.quien_recibe || datosInst.quien_recibe === "") {
       presentAlert({
@@ -163,6 +151,30 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       });
       return;
     }
+
+    // Verificar que la firma esté presente
+    if (!firmaPreview) {
+      presentAlert({
+        header: "Falta la firma",
+        message:
+          "Debes capturar la firma antes de guardar los datos.",
+        cssClass: "alert-android",
+        buttons: ["Ok"],
+      });
+      return;
+    }
+
+    // Obtener fecha y hora actual
+    const today = new Date();
+    const date =
+      today.getFullYear() +
+      "-" +
+      (today.getMonth() + 1) +
+      "-" +
+      today.getDate();
+    const time =
+      today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+    const dateTime = date + " " + time;
 
     // Validar los productos
     for (let i = 0; i < datosInst.productos.length; i++) {

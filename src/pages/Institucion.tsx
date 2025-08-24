@@ -172,13 +172,7 @@ const Institucion: React.FC = () => {
 
         {/* Observaciones y quien recibe */}
         <div className="contDatosExtra">
-          <label className="lblObs">Observaciones:</label>
-          <IonTextarea
-            value={datosInst.observaciones}
-            onIonInput={handleObservacionesChange}
-            className="textObservaciones"
-            disabled={datosInst.save_chofer === "1"}
-          />
+          
 
           <label className="lblObs">Nombre de la persona que recibe:</label>
           <IonInput
@@ -189,12 +183,14 @@ const Institucion: React.FC = () => {
             disabled={datosInst.save_chofer === "1"}
           />
         </div>
+        {/* Observaciones y quien recibe */}
+
 
         {/* Aquí mostramos la firmaCanvas y la vista previa de la firma */}
         <div className="firmaCanvasContainer">
           <label className="lblObs">Firma de quien recibe:</label>
           <FirmaCanvas onGuardarFirma={handleGuardarFirma} />
-          {firmaPreview && (
+          {/* {firmaPreview && (
             <img
               src={firmaPreview}
               alt="Firma guardada"
@@ -204,7 +200,7 @@ const Institucion: React.FC = () => {
                 maxWidth: "100%",
               }}
             />
-          )}
+          )} */}
         </div>
 
         {/* Vista previa de las imágenes tomadas */}
@@ -220,7 +216,15 @@ const Institucion: React.FC = () => {
             ))}
           </div>
         )}
-
+        <div className="contDatosExtra">
+          <label className="lblObs">Observaciones:</label>
+          <IonTextarea
+            value={datosInst.observaciones}
+            onIonInput={handleObservacionesChange}
+            className="textObservaciones"
+            disabled={datosInst.save_chofer === "1"}
+          />
+        </div>
         {/* Imágenes que ya estaban guardadas */}
         {imagenesGuardadas && imagenesGuardadas.length > 0 && (
           <div className="contImagenesGuardadas">
