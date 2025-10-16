@@ -5,7 +5,7 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import {
   Filesystem,
   Directory,
-  FilesystemPermissionStatus,
+  PermissionStatus,
 } from "@capacitor/filesystem";
 import { Capacitor } from "@capacitor/core";
 import { Preferences } from "@capacitor/preferences";
@@ -294,8 +294,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
 
   const ensureExternalStoragePermission = async () => {
     try {
-      const permissions: FilesystemPermissionStatus =
-        await Filesystem.checkPermissions();
+      const permissions: PermissionStatus = await Filesystem.checkPermissions();
 
       if (permissions.publicStorage !== "granted") {
         const requestResult = await Filesystem.requestPermissions();
@@ -462,8 +461,13 @@ export const useInstitucion = (institucionData: any, instId: string) => {
                 const filePath =
                   uri || `${Directory.ExternalStorage}/${galleryPath}`;
                 const previewPath = Capacitor.convertFileSrc(filePath);
+                const resolvedPreviewPath = previewPath ?? image.webPath;
 
-                setImagenPreview([previewPath || image.webPath]);
+                if (!resolvedPreviewPath) {
+                  throw new Error("No se pudo resolver la ruta de la imagen");
+                }
+
+                setImagenPreview([resolvedPreviewPath]);
                 setImagenesStorage([filePath]);
               } catch (saveError) {
                 console.error(
@@ -488,8 +492,13 @@ export const useInstitucion = (institucionData: any, instId: string) => {
               const filePath =
                 savedFile.uri || `${Directory.Data}/${tempFilename}`;
               const previewPath = Capacitor.convertFileSrc(filePath);
+              const resolvedPreviewPath = previewPath ?? image.webPath;
 
-              setImagenPreview([previewPath || image.webPath]);
+              if (!resolvedPreviewPath) {
+                throw new Error("No se pudo resolver la ruta de la imagen");
+              }
+
+              setImagenPreview([resolvedPreviewPath]);
               setImagenesStorage([filePath]);
             }
           };
