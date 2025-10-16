@@ -1,5 +1,5 @@
 // src/pages/Login.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   IonContent,
   IonHeader,
@@ -22,7 +22,13 @@ const Login: React.FC = () => {
   const history = useHistory();
 
   // Usar el hook del contexto
-  const { ingresar, ingresando } = useUsuario();
+  const { ingresar, ingresando, idUsuario, sesionCargada } = useUsuario();
+
+  useEffect(() => {
+    if (sesionCargada && idUsuario) {
+      history.replace("/home");
+    }
+  }, [history, idUsuario, sesionCargada]);
 
   const iniciarSesion = async () => {
     if (usuarioInput.length < 3 || contrasena.length < 3) {

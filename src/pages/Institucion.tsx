@@ -38,6 +38,8 @@ const Institucion: React.FC = () => {
     updateList,
     guardarProductos,
     mostrar_camara,
+    eliminarImagen,
+    eliminarImagenGuardada,
     handleObservacionesChange,
     handleQuienRecibeChange,
     showAlert,
@@ -190,12 +192,18 @@ const Institucion: React.FC = () => {
         {imagenPreview && imagenPreview.length > 0 && (
           <div className="contImagenes">
             {imagenPreview.map((imagen, index) => (
-              <img
-                key={`preview-${index}`}
-                src={imagen}
-                className="imgPreview"
-                alt={`Preview ${index}`}
-              />
+              <div className="imagenPreviewWrapper" key={`preview-${index}`}>
+                <img src={imagen} className="imgPreview" alt={`Preview ${index}`} />
+                {datosInst.save_chofer === "0" && (
+                  <IonButton
+                    color="danger"
+                    className="btnEliminarImagen"
+                    onClick={() => eliminarImagen(index)}
+                  >
+                    Eliminar
+                  </IonButton>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -203,12 +211,21 @@ const Institucion: React.FC = () => {
         {imagenesGuardadas && imagenesGuardadas.length > 0 && (
           <div className="contImagenesGuardadas">
             {imagenesGuardadas.map((imagen, index) => (
-              <img
+              <div
+                className="imagenPreviewWrapper"
                 key={`saved-${index}`}
-                src={imagen}
-                className="imgPreview"
-                alt={`Saved ${index}`}
-              />
+              >
+                <img src={imagen} className="imgPreview" alt={`Saved ${index}`} />
+                {datosInst.save_chofer === "0" && (
+                  <IonButton
+                    color="danger"
+                    className="btnEliminarImagen"
+                    onClick={() => eliminarImagenGuardada(index)}
+                  >
+                    Eliminar
+                  </IonButton>
+                )}
+              </div>
             ))}
           </div>
         )}

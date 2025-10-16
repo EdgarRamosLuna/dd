@@ -16,10 +16,11 @@ import React, {
     correo: string;
     ingresando: boolean;
     error: string | null;
+    sesionCargada: boolean;
     ingresar: (usuarioInput: string, contrasena: string) => Promise<any>;
     cerrarSesion: () => Promise<void>;
     cargarDatosUsuario: () => Promise<void>;
-    setidUsuario: (id: string) => void;
+    setidUsuario: (id: string | null) => void;
   }
   
   const UsuarioContext = createContext<UsuarioContextProps | undefined>(undefined);
@@ -30,6 +31,7 @@ import React, {
     const [correo, setCorreo] = useState<string>('');
     const [ingresando, setIngresando] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+    const [sesionCargada, setSesionCargada] = useState<boolean>(false);
   
     // Cargar datos del usuario desde el storage al iniciar
     const cargarDatosUsuario = useCallback(async () => {
@@ -37,15 +39,12 @@ import React, {
         const usuarioValue = await Preferences.get({ key: 'usuario' });
         const idUsuarioValue = await Preferences.get({ key: 'usuario_id' });
         
-        if (usuarioValue.value) {
-          setUsuario(usuarioValue.value);
-        }
-        
-        if (idUsuarioValue.value) {
-          setidUsuario(idUsuarioValue.value);
-        }
+        setUsuario(usuarioValue.value ?? '');
+        setidUsuario(idUsuarioValue.value ?? null);
       } catch (err) {
         console.error('Error al cargar datos del usuario:', err);
+      } finally {
+        setSesionCargada(true);
       }
     }, []);
   
@@ -96,6 +95,7 @@ import React, {
           // Actualizamos el estado con los datos del usuario
           setidUsuario(data.id_usuario || null);
           setUsuario(data.usuario || '');
+          setSesionCargada(true);
   
           // Guardar en el Storage
           if (data.usuario) {
@@ -125,6 +125,7 @@ import React, {
       setidUsuario(null);
       setUsuario('');
       setCorreo('');
+      setSesionCargada(true);
   
       // Limpiar el storage
       await Preferences.remove({ key: 'usuario' });
@@ -139,6 +140,7 @@ import React, {
           correo,
           ingresando,
           error,
+          sesionCargada,
           ingresar,
           cerrarSesion,
           cargarDatosUsuario,
