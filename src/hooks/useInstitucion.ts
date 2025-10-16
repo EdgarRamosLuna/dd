@@ -7,19 +7,70 @@ import { Preferences } from "@capacitor/preferences";
 import { useHistory } from "react-router-dom";
 
 export const useInstitucion = (institucionData: any, instId: string) => {
-  // Estados
+  // -----------------------------
+  // 👥 Estados principales
+  // -----------------------------
   const [datosInst, setDatosInst] = useState<any>(institucionData || {});
   const [arregloProductos, setArregloProductos] = useState<any[]>([]);
   const [imagenPreview, setImagenPreview] = useState<string[]>([]);
   const [imagenesStorage, setImagenesStorage] = useState<string[]>([]);
   const [imagenesGuardadas, setImagenesGuardadas] = useState<string[]>([]);
+  const [firmaPreview, setFirmaPreview] = useState<string | null>(null);
   const [numImagenes, setNumImagenes] = useState(0);
 
-  // Hooks
+  // -----------------------------
+  // 🔔 Hooks auxiliares
+  // -----------------------------
   const [presentAlert] = useIonAlert();
   const history = useHistory();
 
-  // Inicializar datos
+  const obtenerNombreCarpetaDelDia = () => {
+    const hoy = new Date();
+    const year = hoy.getFullYear();
+    const month = String(hoy.getMonth() + 1).padStart(2, "0");
+    const day = String(hoy.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const crearCarpetaGaleria = async (rutaCarpeta: string) => {
+    try {
+      await Filesystem.mkdir({
+        path: rutaCarpeta,
+        directory: Directory.ExternalStorage,
+        recursive: true,
+      });
+    } catch (error: any) {
+      const mensaje = error?.message?.toLowerCase?.() ?? "";
+      if (!mensaje.includes("exist")) {
+        console.error("Error al crear carpeta en la galería:", error);
+      }
+    }
+  };
+
+  const guardarImagenEnGaleria = async (
+    dataBase64: string,
+    filename: string
+  ) => {
+    const carpetaFecha = obtenerNombreCarpetaDelDia();
+    const carpetaGaleria = `Pictures/Desayunos/${carpetaFecha}`;
+
+    await crearCarpetaGaleria(carpetaGaleria);
+
+    try {
+      await Filesystem.writeFile({
+        path: `${carpetaGaleria}/${filename}`,
+        data: dataBase64,
+        directory: Directory.ExternalStorage,
+        recursive: true,
+      });
+    } catch (error) {
+      console.error("Error al guardar la imagen en la galería:", error);
+    }
+  };
+
+  // -----------------------------
+  // 🔧 Inicializar datos de productos
+  // -----------------------------
   useEffect(() => {
     if (institucionData) {
       const productosAgregar: any[] = [];
@@ -37,7 +88,9 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     }
   }, [institucionData]);
 
-  // Cargar imágenes guardadas
+  // -----------------------------
+  // 📥 Cargar imágenes y firma guardadas
+  // -----------------------------
   const cargarImagenesGuardadas = async () => {
     try {
       const { value } = await Preferences.get({ key: "imagenes_subir" });
@@ -49,18 +102,48 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         );
 
         if (imagenesInst) {
+          // Cargar imágenes
           setImagenesGuardadas(imagenesInst.imagenes_mostrar || []);
-          setNumImagenes((imagenesInst.imagenes_mostrar || []).length);
+          setNumImagenes(
+            (imagenesInst.imagenes_mostrar || []).length
+          );
+
+          // Cargar firma (si existe)
+          if (imagenesInst.firma) {
+            setFirmaPreview(imagenesInst.firma);
+            // También lo guardamos en datosInst para que lo vea la UI
+            setDatosInst((prev: any) => ({
+              ...prev,
+              firma: imagenesInst.firma,
+            }));
+          } else {
+            setFirmaPreview(null);
+          }
         } else {
           setImagenesGuardadas([]);
+          setFirmaPreview(null);
         }
       }
     } catch (err) {
-      console.error("Error al cargar imágenes guardadas:", err);
+      console.error("Error al cargar imágenes y firma guardadas:", err);
     }
   };
 
-  // Llenar con el valor máximo
+  // -----------------------------
+  // ✍️ Función para que el componente de firma guarde el dataURL
+  // -----------------------------
+  const handleGuardarFirma = (dataUrl: string) => {
+    setFirmaPreview(dataUrl);
+    // También inyectamos en datosInst para que lo muestre la UI
+    setDatosInst((prev: any) => ({
+      ...prev,
+      firma: dataUrl,
+    }));
+  };
+
+  // -----------------------------
+  // 🖋️ Rellenar con valor máximo
+  // -----------------------------
   const llenarMaximo = (index: number) => {
     const newDatosInst = { ...datosInst };
     newDatosInst.productos[index].entregado =
@@ -68,7 +151,9 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     setDatosInst(newDatosInst);
   };
 
-  // Actualizar valor de producto
+  // -----------------------------
+  // 🔢 Actualizar valor de producto
+  // -----------------------------
   const updateList = (event: CustomEvent, index: number) => {
     const format = /^\d*\.?\d*$/;
     const value = event.detail.value;
@@ -83,12 +168,12 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
 
-  // Guardar productos
+  // -----------------------------
+  // 💾 Guardar productos (y firma) en Preferences
+  // -----------------------------
   const guardarProductos = async () => {
     // Verificar que haya al menos una imagen
     if (numImagenes < 1) {
-      //      setAlertMessage('No puedes guardar sin antes haber tomado al menos una imagen.');
-      //setShowAlert(true);
       presentAlert({
         header: "Sin imágenes",
         message:
@@ -113,7 +198,6 @@ export const useInstitucion = (institucionData: any, instId: string) => {
 
     // Verificar que se haya ingresado quien recibe
     if (!datosInst.quien_recibe || datosInst.quien_recibe === "") {
-      //   setAlertMessage('No has ingresado la persona que está recibiendo los productos. Este campo es necesario para continuar.');
       presentAlert({
         header: "Falta información",
         message:
@@ -121,16 +205,13 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         cssClass: "alert-android",
         buttons: ["Ok"],
       });
-      //   setShowAlert(true);
       return;
     }
 
     // Validar los productos
-    let error = 0;
     for (let i = 0; i < datosInst.productos.length; i++) {
       // Verificar que sea un número
       if (isNaN(datosInst.productos[i].entregado)) {
-        error = 1;
         presentAlert({
           header: "Información incorrecta",
           message:
@@ -141,15 +222,10 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         return;
       }
 
-      if (error === 1) {
-        return false;
-      }
-
       // Verificar que no sea mayor a la cantidad a entregar
       if (
         +datosInst.productos[i].entregado > +datosInst.productos[i].cantidad
       ) {
-        error = 1;
         presentAlert({
           header: "Información incorrecta",
           message:
@@ -159,17 +235,14 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         });
         return;
       }
-
-      if (error === 1) {
-        return false;
-      }
     }
 
-    // Actualizar datos
+    // Incluir la firma en los datos guardados
     const newDatosInst = {
       ...datosInst,
       save_chofer: "1",
       fecha_guardado: dateTime,
+      ...(firmaPreview ? { firma: firmaPreview } : {}),
     };
     setDatosInst(newDatosInst);
 
@@ -177,16 +250,18 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     await guardar_storage_productos(newDatosInst);
   };
 
-  // Guardar en el almacenamiento
+  // -----------------------------
+  // 💾 Lógica para guardar en Preferences
+  // -----------------------------
   const guardar_storage_productos = async (datosActualizados: any) => {
     try {
-      // Obtener datos actuales
+      // Obtener datos actuales de instituciones guardadas
       const { value: distDatosValue } = await Preferences.get({
         key: "distDatos",
       });
       const distDatos = distDatosValue ? JSON.parse(distDatosValue) : [];
 
-      // Actualizar el elemento
+      // Actualizar el elemento correspondiente
       const index = distDatos.findIndex(
         (item: any) => item.dist_inst_id === instId
       );
@@ -203,16 +278,20 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         value: JSON.stringify(distDatos),
       });
 
-      // Preparar objeto de imágenes
-      const objetoImagenes = {
+      // Preparar objeto de imágenes y firma para guardar
+      const objetoImagenes: any = {
         imagenes: imagenesStorage,
         imagenes_mostrar: imagenPreview,
         inst_id: instId,
       };
+      // Si existe firma, la agregamos
+      if (firmaPreview) {
+        objetoImagenes.firma = firmaPreview;
+      }
 
-      // Guardar imágenes
+      // Guardar imágenes (y firma) en Preferences
       const { value } = await Preferences.get({ key: "imagenes_subir" });
-      let arregloImagenes = [];
+      let arregloImagenes: any[] = [];
 
       if (!value || value === "") {
         arregloImagenes.push(objetoImagenes);
@@ -236,7 +315,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         value: JSON.stringify(arregloImagenes),
       });
 
-      // Mostrar alerta de éxito
+      // Mostrar alerta de éxito y regresar
       presentAlert({
         header: "Datos almacenados en el dispositivo",
         message:
@@ -262,7 +341,9 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     }
   };
 
-  // Mostrar la cámara para tomar fotos
+  // -----------------------------
+  // 📷 Mostrar la cámara para tomar fotos
+  // -----------------------------
   const mostrar_camara = async () => {
     if (numImagenes >= 4) {
       presentAlert({
@@ -302,11 +383,14 @@ export const useInstitucion = (institucionData: any, instId: string) => {
           const reader = new FileReader();
           reader.onloadend = async () => {
             const base64Data = reader.result as string;
+            const base64SinEncabezado = base64Data.includes(",")
+              ? base64Data.split(",")[1]
+              : base64Data;
 
             // Guardar el archivo en el directorio de datos
             const savedFile = await Filesystem.writeFile({
               path: tempFilename,
-              data: base64Data.split(",")[1],
+              data: base64SinEncabezado,
               directory: Directory.Data,
             });
 
@@ -314,9 +398,10 @@ export const useInstitucion = (institucionData: any, instId: string) => {
             const filePath =
               savedFile.uri || `${Directory.Data}/${tempFilename}`;
 
-            // Actualizar los estados
-            //setImagenPreview(prev => [...prev, image.webPath]);
+            // Actualizar estado de almacenamiento
             setImagenesStorage((prev) => [...prev, filePath]);
+
+            await guardarImagenEnGaleria(base64SinEncabezado, tempFilename);
           };
 
           reader.readAsDataURL(file);
@@ -329,13 +414,17 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     }
   };
 
-  // Actualizar observaciones
+  // -----------------------------
+  // ✏️ Actualizar observaciones
+  // -----------------------------
   const handleObservacionesChange = (event: CustomEvent) => {
     const newDatosInst = { ...datosInst, observaciones: event.detail.value };
     setDatosInst(newDatosInst);
   };
 
-  // Actualizar quien recibe
+  // -----------------------------
+  // 👤 Actualizar quien recibe
+  // -----------------------------
   const handleQuienRecibeChange = (event: CustomEvent) => {
     const newDatosInst = { ...datosInst, quien_recibe: event.detail.value };
     setDatosInst(newDatosInst);
@@ -346,6 +435,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     arregloProductos,
     imagenPreview,
     imagenesGuardadas,
+    firmaPreview,
     numImagenes,
     cargarImagenesGuardadas,
     llenarMaximo,
@@ -354,6 +444,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     mostrar_camara,
     handleObservacionesChange,
     handleQuienRecibeChange,
+    handleGuardarFirma,
     showAlert,
     setShowAlert,
     alertMessage,

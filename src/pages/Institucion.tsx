@@ -15,6 +15,7 @@ import {
 } from "@ionic/react";
 import { useParams, useLocation } from "react-router-dom";
 import { useInstitucion } from "../hooks/useInstitucion";
+import FirmaCanvas from "../components/FirmaCanvas";
 import "./Institucion.css";
 import CustomAlert from "../components/CustomAlert";
 
@@ -23,12 +24,12 @@ interface InstitucionParams {
 }
 
 const Institucion: React.FC = () => {
-  // Obtener parámetros de la URL y datos de la ubicación
+  // Obtener parámetro "id" y data de la ubicación
   const { id } = useParams<InstitucionParams>();
-  const location = useLocation();  
+  const location = useLocation();
   const { datosInst: institucionData } = (location.state as any) || {};
 
-  // Usar el hook personalizado
+  // Usar nuestro hook personalizado
   const {
     datosInst,
     imagenPreview,
@@ -43,9 +44,11 @@ const Institucion: React.FC = () => {
     showAlert,
     setShowAlert,
     alertMessage,
+    firmaPreview,
+    handleGuardarFirma,
   } = useInstitucion(institucionData, id);
 
-  // Cargar imágenes guardadas cuando se muestra la vista
+  // Cuando entremos a la vista, cargamos imágenes y firma previas
   useIonViewDidEnter(() => {
     cargarImagenesGuardadas();
   });
@@ -59,8 +62,9 @@ const Institucion: React.FC = () => {
         buttons={["Ok"]}
         cssClass="alertaSuccess"
       />
-      <IonHeader className="institucionHeader"
-      translucent={false}
+      <IonHeader
+        className="institucionHeader"
+        translucent={false}
         style={{
           paddingTop: "env(safe-area-inset-top)",
           height: "calc(56px + env(safe-area-inset-top))",
@@ -82,7 +86,7 @@ const Institucion: React.FC = () => {
             <div className="dataEscCont">
               <div className="datEscCont_1">
                 <div className="datEscTxt">
-                  <span className="spanHeaderBold">Direccion: </span>
+                  <span className="spanHeaderBold">Dirección: </span>
                   <span className="spanHeaderRegular">
                     {datosInst.domicilio}
                   </span>
@@ -94,7 +98,7 @@ const Institucion: React.FC = () => {
                   </span>
                 </div>
                 <div className="datEscTxt">
-                  <span className="spanHeaderBold">Telefono: </span>
+                  <span className="spanHeaderBold">Teléfono: </span>
                   <span className="spanHeaderRegular">
                     {datosInst.telefono}
                   </span>
@@ -111,19 +115,17 @@ const Institucion: React.FC = () => {
         </IonToolbar>
       </IonHeader>
 
-      <IonContent        
-        className=""
+      <IonContent
         style={{
           "--padding-top": "9em",
           "--padding-bottom": "0px",
           "--padding-start": "10px",
           "--padding-end": "10px",
-          /* si quieres que el contenido suba bajo el header: */
           "--offset-top": "0px",
-          /* y si no quieres offset bottom al aparecer teclado: */
           "--keyboard-offset": "0px",
         }}
       >
+        {/* Tabla de productos */}
         <div className="contTabla">
           <table id="tablaProductos">
             <thead>
@@ -168,6 +170,7 @@ const Institucion: React.FC = () => {
           </table>
         </div>
 
+        {/* Observaciones y quien recibe */}
         <div className="contDatosExtra">
           <label className="lblObs">Observaciones:</label>
           <IonTextarea
@@ -187,6 +190,24 @@ const Institucion: React.FC = () => {
           />
         </div>
 
+        {/* Aquí mostramos la firmaCanvas y la vista previa de la firma */}
+        <div className="firmaCanvasContainer">
+          <label className="lblObs">Firma de quien recibe:</label>
+          <FirmaCanvas onGuardarFirma={handleGuardarFirma} />
+          {firmaPreview && (
+            <img
+              src={firmaPreview}
+              alt="Firma guardada"
+              style={{
+                marginTop: 10,
+                border: "1px solid #ccc",
+                maxWidth: "100%",
+              }}
+            />
+          )}
+        </div>
+
+        {/* Vista previa de las imágenes tomadas */}
         {imagenPreview && imagenPreview.length > 0 && (
           <div className="contImagenes">
             {imagenPreview.map((imagen, index) => (
@@ -200,6 +221,7 @@ const Institucion: React.FC = () => {
           </div>
         )}
 
+        {/* Imágenes que ya estaban guardadas */}
         {imagenesGuardadas && imagenesGuardadas.length > 0 && (
           <div className="contImagenesGuardadas">
             {imagenesGuardadas.map((imagen, index) => (
@@ -213,6 +235,7 @@ const Institucion: React.FC = () => {
           </div>
         )}
 
+        {/* Botón Guardar (solo si save_chofer === "0") */}
         {datosInst.save_chofer === "0" && (
           <div className="contBotonCentrado">
             <IonButton
@@ -224,6 +247,7 @@ const Institucion: React.FC = () => {
           </div>
         )}
 
+        {/* Botón Cámara (solo si save_chofer === "0") */}
         {datosInst.save_chofer === "0" && (
           <div className="contBotonCentrado contAbajo">
             <IonButton className="btnCamara" onClick={mostrar_camara}>

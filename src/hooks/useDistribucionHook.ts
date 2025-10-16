@@ -15,6 +15,7 @@ interface DistribucionData {
 export const useDistribucionHook = () => {
   //const [distDatos, setDistDatos] = useState<any[]>([]);
   const { distDatos, setDistDatos } = useDistribucion();
+  console.log("🚀 ~ useDistribucionHook ~ distDatos:", distDatos)
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
