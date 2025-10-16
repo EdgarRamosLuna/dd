@@ -155,11 +155,27 @@ ion-content {
     flex-wrap: wrap;
   }
   
-  .imgPreview {
-    width: 33%;
-    margin-right: 0.33%;
-    float: left;
+  .imagenPreviewWrapper {
+    width: 100%;
+    max-width: 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-right: 10px;
     margin-bottom: 10px;
+  }
+
+  .imgPreview {
+    width: 100%;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    margin-bottom: 8px;
+  }
+
+  .btnEliminarImagen {
+    --background: #c53434;
+    --color: #fff;
+    width: 100%;
   }
   
   .btnCamara {
