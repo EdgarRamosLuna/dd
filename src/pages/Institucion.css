@@ -188,9 +188,11 @@ ion-content {
   
   /* Estilos para campos de texto */
   .contDatosExtra {
-    width: 100%;
+    width: 95%;
     float: left;
     margin-bottom: 20px;
+    margin-left: auto;
+    margin-right: auto;
   }
   
   .lblObs {
