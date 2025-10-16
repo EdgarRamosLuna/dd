@@ -2,7 +2,12 @@
 import { useState, useEffect } from "react";
 import { useIonAlert } from "@ionic/react";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
-import { Filesystem, Directory } from "@capacitor/filesystem";
+import {
+  Filesystem,
+  Directory,
+  FilesystemPermissionStatus,
+} from "@capacitor/filesystem";
+import { Capacitor } from "@capacitor/core";
 import { Preferences } from "@capacitor/preferences";
 import { useHistory } from "react-router-dom";
 
@@ -58,23 +63,13 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         );
 
         if (imagenesInst) {
-          // Cargar imágenes
-          setImagenesGuardadas(imagenesInst.imagenes_mostrar || []);
-          setNumImagenes(
-            (imagenesInst.imagenes_mostrar || []).length
-          );
-
-          // Cargar firma (si existe)
-          if (imagenesInst.firma) {
-            setFirmaPreview(imagenesInst.firma);
-            // También lo guardamos en datosInst para que lo vea la UI
-            setDatosInst((prev: any) => ({
-              ...prev,
-              firma: imagenesInst.firma,
-            }));
-          } else {
-            setFirmaPreview(null);
-          }
+          const imagenesParaMostrar = (
+            imagenesInst.imagenes_mostrar || []
+          ).slice(0, 1);
+          setImagenesGuardadas(imagenesParaMostrar);
+          setNumImagenes(imagenesParaMostrar.length);
+          setImagenPreview([]);
+          setImagenesStorage([]);
         } else {
           setImagenesGuardadas([]);
           setFirmaPreview(null);
@@ -297,15 +292,79 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     }
   };
 
-  // -----------------------------
-  // 📷 Mostrar la cámara para tomar fotos
-  // -----------------------------
+  const ensureExternalStoragePermission = async () => {
+    try {
+      const permissions: FilesystemPermissionStatus =
+        await Filesystem.checkPermissions();
+
+      if (permissions.publicStorage !== "granted") {
+        const requestResult = await Filesystem.requestPermissions();
+
+        if (requestResult.publicStorage !== "granted") {
+          throw new Error("Permiso de almacenamiento denegado");
+        }
+      }
+    } catch (permissionError) {
+      console.error("Error al verificar permisos de almacenamiento:", permissionError);
+      throw permissionError;
+    }
+  };
+
+  const eliminarImagen = (index: number) => {
+    setImagenPreview((prev) => prev.filter((_, idx) => idx !== index));
+    setImagenesStorage((prev) => prev.filter((_, idx) => idx !== index));
+    setNumImagenes((prev) => (prev > 0 ? prev - 1 : 0));
+  };
+
+  const eliminarImagenGuardada = async (index: number) => {
+    try {
+      const { value } = await Preferences.get({ key: "imagenes_subir" });
+
+      if (value && value !== "") {
+        const arregloImagenes = JSON.parse(value);
+        const instIndex = arregloImagenes.findIndex(
+          (item: any) => item.inst_id === instId
+        );
+
+        if (instIndex !== -1) {
+          const imagenesInst = arregloImagenes[instIndex];
+          const nuevasImagenes = [...(imagenesInst.imagenes || [])];
+          const nuevasImagenesMostrar = [
+            ...(imagenesInst.imagenes_mostrar || []),
+          ];
+
+          nuevasImagenes.splice(index, 1);
+          nuevasImagenesMostrar.splice(index, 1);
+
+          arregloImagenes[instIndex] = {
+            ...imagenesInst,
+            imagenes: nuevasImagenes,
+            imagenes_mostrar: nuevasImagenesMostrar,
+          };
+
+          await Preferences.set({
+            key: "imagenes_subir",
+            value: JSON.stringify(arregloImagenes),
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Error al eliminar imagen guardada:", err);
+    }
+
+    setImagenesGuardadas((prev) => prev.filter((_, idx) => idx !== index));
+    setImagenPreview([]);
+    setImagenesStorage([]);
+    setNumImagenes((prev) => (prev > 0 ? prev - 1 : 0));
+  };
+
+  // Mostrar la cámara para tomar fotos
   const mostrar_camara = async () => {
-    if (numImagenes >= 4) {
+    if (numImagenes >= 1) {
       presentAlert({
         header: "Máximo de imágenes",
         message:
-          "Solo se puede grabar como máximo 4 imágenes en cada institución.",
+          "Solo se puede tomar una foto. Elimina la imagen actual para capturar una nueva.",
         cssClass: "alert-android",
         buttons: ["Ok"],
       });
@@ -339,20 +398,100 @@ export const useInstitucion = (institucionData: any, instId: string) => {
           const reader = new FileReader();
           reader.onloadend = async () => {
             const base64Data = reader.result as string;
+            const base64Image = base64Data.split(",")[1];
 
-            // Guardar el archivo en el directorio de datos
-            const savedFile = await Filesystem.writeFile({
-              path: tempFilename,
-              data: base64Data.split(",")[1],
-              directory: Directory.Data,
-            });
+            if (Capacitor.getPlatform() === "android") {
+              try {
+                await ensureExternalStoragePermission();
+              } catch (permissionError) {
+                console.error(
+                  "Permiso de almacenamiento denegado:",
+                  permissionError
+                );
+                presentAlert({
+                  header: "Permiso requerido",
+                  message:
+                    "No se otorgó permiso para almacenar imágenes en la galería.",
+                  cssClass: "alert-android",
+                  buttons: ["Ok"],
+                });
+                return;
+              }
 
-            // Obtener la ruta completa del archivo guardado
-            const filePath =
-              savedFile.uri || `${Directory.Data}/${tempFilename}`;
+              const today = new Date();
+              const padNumber = (value: number) =>
+                value.toString().padStart(2, "0");
+              const todayFolder = `${today.getFullYear()}-${padNumber(
+                today.getMonth() + 1
+              )}-${padNumber(today.getDate())}`;
+              const galleryFolder = `Pictures/Desayunos/${todayFolder}`;
 
-            // Actualizar estado de almacenamiento
-            setImagenesStorage((prev) => [...prev, filePath]);
+              try {
+                await Filesystem.mkdir({
+                  path: galleryFolder,
+                  directory: Directory.ExternalStorage,
+                  recursive: true,
+                });
+              } catch (mkdirError: any) {
+                const message = mkdirError?.message || "";
+                if (
+                  !message.includes("EEXIST") &&
+                  !message.includes("exists")
+                ) {
+                  console.error(
+                    "Error al crear la carpeta de la galería:",
+                    mkdirError
+                  );
+                }
+              }
+
+              const galleryPath = `${galleryFolder}/${tempFilename}`;
+              try {
+                await Filesystem.writeFile({
+                  path: galleryPath,
+                  data: base64Image,
+                  directory: Directory.ExternalStorage,
+                  recursive: true,
+                });
+
+                const { uri } = await Filesystem.getUri({
+                  directory: Directory.ExternalStorage,
+                  path: galleryPath,
+                });
+
+                const filePath =
+                  uri || `${Directory.ExternalStorage}/${galleryPath}`;
+                const previewPath = Capacitor.convertFileSrc(filePath);
+
+                setImagenPreview([previewPath || image.webPath]);
+                setImagenesStorage([filePath]);
+              } catch (saveError) {
+                console.error(
+                  "Error al guardar la imagen en la galería:",
+                  saveError
+                );
+                presentAlert({
+                  header: "Error",
+                  message:
+                    "No se pudo guardar la imagen en la galería del dispositivo.",
+                  cssClass: "alert-android",
+                  buttons: ["Ok"],
+                });
+              }
+            } else {
+              const savedFile = await Filesystem.writeFile({
+                path: tempFilename,
+                data: base64Image,
+                directory: Directory.Data,
+              });
+
+              const filePath =
+                savedFile.uri || `${Directory.Data}/${tempFilename}`;
+              const previewPath = Capacitor.convertFileSrc(filePath);
+
+              setImagenPreview([previewPath || image.webPath]);
+              setImagenesStorage([filePath]);
+            }
           };
 
           reader.readAsDataURL(file);
@@ -393,6 +532,8 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     updateList,
     guardarProductos,
     mostrar_camara,
+    eliminarImagen,
+    eliminarImagenGuardada,
     handleObservacionesChange,
     handleQuienRecibeChange,
     handleGuardarFirma,
