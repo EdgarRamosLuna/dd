@@ -508,8 +508,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
                 const filePath =
                   savedFile.uri || `${Directory.Data}/${tempFilename}`;
                 const previewPath = Capacitor.convertFileSrc(filePath);
-                const resolvedPreviewPath =
-                  previewPath ?? image.webPath ?? dataUrl;
+                const resolvedPreviewPath = previewPath ?? image.webPath;
 
                 if (!resolvedPreviewPath) {
                   throw new Error("No se pudo resolver la ruta de la imagen");
@@ -529,7 +528,18 @@ export const useInstitucion = (institucionData: any, instId: string) => {
                 cssClass: "alert-android",
                 buttons: ["Ok"],
               });
-              setNumImagenes((prev) => (prev > 0 ? prev - 1 : 0));
+
+              const filePath =
+                savedFile.uri || `${Directory.Data}/${tempFilename}`;
+              const previewPath = Capacitor.convertFileSrc(filePath);
+              const resolvedPreviewPath = previewPath ?? image.webPath;
+
+              if (!resolvedPreviewPath) {
+                throw new Error("No se pudo resolver la ruta de la imagen");
+              }
+
+              setImagenPreview([resolvedPreviewPath]);
+              setImagenesStorage([filePath]);
             }
           };
 
