@@ -24,6 +24,50 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [presentAlert] = useIonAlert();
   const history = useHistory();
 
+  const obtenerNombreCarpetaDelDia = () => {
+    const hoy = new Date();
+    const year = hoy.getFullYear();
+    const month = String(hoy.getMonth() + 1).padStart(2, "0");
+    const day = String(hoy.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const crearCarpetaGaleria = async (rutaCarpeta: string) => {
+    try {
+      await Filesystem.mkdir({
+        path: rutaCarpeta,
+        directory: Directory.ExternalStorage,
+        recursive: true,
+      });
+    } catch (error: any) {
+      const mensaje = error?.message?.toLowerCase?.() ?? "";
+      if (!mensaje.includes("exist")) {
+        console.error("Error al crear carpeta en la galería:", error);
+      }
+    }
+  };
+
+  const guardarImagenEnGaleria = async (
+    dataBase64: string,
+    filename: string
+  ) => {
+    const carpetaFecha = obtenerNombreCarpetaDelDia();
+    const carpetaGaleria = `Pictures/Desayunos/${carpetaFecha}`;
+
+    await crearCarpetaGaleria(carpetaGaleria);
+
+    try {
+      await Filesystem.writeFile({
+        path: `${carpetaGaleria}/${filename}`,
+        data: dataBase64,
+        directory: Directory.ExternalStorage,
+        recursive: true,
+      });
+    } catch (error) {
+      console.error("Error al guardar la imagen en la galería:", error);
+    }
+  };
+
   // -----------------------------
   // 🔧 Inicializar datos de productos
   // -----------------------------
@@ -339,11 +383,14 @@ export const useInstitucion = (institucionData: any, instId: string) => {
           const reader = new FileReader();
           reader.onloadend = async () => {
             const base64Data = reader.result as string;
+            const base64SinEncabezado = base64Data.includes(",")
+              ? base64Data.split(",")[1]
+              : base64Data;
 
             // Guardar el archivo en el directorio de datos
             const savedFile = await Filesystem.writeFile({
               path: tempFilename,
-              data: base64Data.split(",")[1],
+              data: base64SinEncabezado,
               directory: Directory.Data,
             });
 
@@ -353,6 +400,8 @@ export const useInstitucion = (institucionData: any, instId: string) => {
 
             // Actualizar estado de almacenamiento
             setImagenesStorage((prev) => [...prev, filePath]);
+
+            await guardarImagenEnGaleria(base64SinEncabezado, tempFilename);
           };
 
           reader.readAsDataURL(file);
