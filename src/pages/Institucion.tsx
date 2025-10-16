@@ -193,7 +193,7 @@ const Institucion: React.FC = () => {
         </div>
 
         {/* Aquí mostramos la firmaCanvas y la vista previa de la firma */}
-        <div className="firmaCanvasContainer">
+        {/* <div className="firmaCanvasContainer">
           <label className="lblObs">Firma de quien recibe:</label>
           <FirmaCanvas onGuardarFirma={handleGuardarFirma} />
           {firmaPreview && (
@@ -207,7 +207,7 @@ const Institucion: React.FC = () => {
               }}
             />
           )}
-        </div>
+        </div> */}
 
         {/* Vista previa de las imágenes tomadas */}
         {imagenPreview && imagenPreview.length > 0 && (
