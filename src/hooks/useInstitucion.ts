@@ -396,52 +396,12 @@ export const useInstitucion = (institucionData: any, instId: string) => {
           // Guardar el archivo en el sistema de archivos
           const reader = new FileReader();
           reader.onloadend = async () => {
-            const base64Data = reader.result as string;
-            const base64Image = base64Data.split(",")[1];
+            try {
+              const dataUrl =
+                typeof reader.result === "string" ? reader.result : "";
 
-            if (Capacitor.getPlatform() === "android") {
-              try {
-                await ensureExternalStoragePermission();
-              } catch (permissionError) {
-                console.error(
-                  "Permiso de almacenamiento denegado:",
-                  permissionError
-                );
-                presentAlert({
-                  header: "Permiso requerido",
-                  message:
-                    "No se otorgó permiso para almacenar imágenes en la galería.",
-                  cssClass: "alert-android",
-                  buttons: ["Ok"],
-                });
-                return;
-              }
-
-              const today = new Date();
-              const padNumber = (value: number) =>
-                value.toString().padStart(2, "0");
-              const todayFolder = `${today.getFullYear()}-${padNumber(
-                today.getMonth() + 1
-              )}-${padNumber(today.getDate())}`;
-              const galleryFolder = `Pictures/Desayunos/${todayFolder}`;
-
-              try {
-                await Filesystem.mkdir({
-                  path: galleryFolder,
-                  directory: Directory.ExternalStorage,
-                  recursive: true,
-                });
-              } catch (mkdirError: any) {
-                const message = mkdirError?.message || "";
-                if (
-                  !message.includes("EEXIST") &&
-                  !message.includes("exists")
-                ) {
-                  console.error(
-                    "Error al crear la carpeta de la galería:",
-                    mkdirError
-                  );
-                }
+              if (!dataUrl) {
+                throw new Error("No se pudo leer el contenido de la imagen");
               }
 
               const galleryPath = `${galleryFolder}/${tempFilename}`;
@@ -474,16 +434,11 @@ export const useInstitucion = (institucionData: any, instId: string) => {
                   "Error al guardar la imagen en la galería:",
                   saveError
                 );
-                presentAlert({
-                  header: "Error",
-                  message:
-                    "No se pudo guardar la imagen en la galería del dispositivo.",
-                  cssClass: "alert-android",
-                  buttons: ["Ok"],
-                });
               }
-            } else {
-              const savedFile = await Filesystem.writeFile({
+
+              const base64Image = dataUrl.substring(commaIndex + 1);
+
+              const dataFile = await Filesystem.writeFile({
                 path: tempFilename,
                 data: base64Image,
                 directory: Directory.Data,
