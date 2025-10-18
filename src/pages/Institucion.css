@@ -156,13 +156,11 @@ ion-content {
   }
   
   .imagenPreviewWrapper {
-    width: 100%;
-    max-width: 320px;
+    width: 50%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-right: 10px;
-    margin-bottom: 10px;
+    margin: 0 auto;
   }
 
   .imgPreview {
@@ -175,7 +173,8 @@ ion-content {
   .btnEliminarImagen {
     --background: #c53434;
     --color: #fff;
-    width: 100%;
+    width: 70%;
+    margin: 0 auto;
   }
   
   .btnCamara {
@@ -189,9 +188,11 @@ ion-content {
   
   /* Estilos para campos de texto */
   .contDatosExtra {
-    width: 100%;
+    width: 95%;
     float: left;
     margin-bottom: 20px;
+    margin-left: auto;
+    margin-right: auto;
   }
   
   .lblObs {

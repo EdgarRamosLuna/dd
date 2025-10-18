@@ -404,11 +404,35 @@ export const useInstitucion = (institucionData: any, instId: string) => {
                 throw new Error("No se pudo leer el contenido de la imagen");
               }
 
-              const commaIndex = dataUrl.indexOf(",");
+              const galleryPath = `${galleryFolder}/${tempFilename}`;
+              try {
+                await Filesystem.writeFile({
+                  path: galleryPath,
+                  data: base64Image,
+                  directory: Directory.ExternalStorage,
+                  recursive: true,
+                });
 
-              if (commaIndex === -1) {
-                throw new Error(
-                  "El contenido de la imagen no tiene el formato esperado"
+                const { uri } = await Filesystem.getUri({
+                  directory: Directory.ExternalStorage,
+                  path: galleryPath,
+                });
+
+                const filePath =
+                  uri || `${Directory.ExternalStorage}/${galleryPath}`;
+                const previewPath = Capacitor.convertFileSrc(filePath);
+                const resolvedPreviewPath = previewPath ?? image.webPath;
+
+                if (!resolvedPreviewPath) {
+                  throw new Error("No se pudo resolver la ruta de la imagen");
+                }
+
+                setImagenPreview([resolvedPreviewPath]);
+                setImagenesStorage([filePath]);
+              } catch (saveError) {
+                console.error(
+                  "Error al guardar la imagen en la galería:",
+                  saveError
                 );
               }
 
@@ -420,105 +444,17 @@ export const useInstitucion = (institucionData: any, instId: string) => {
                 directory: Directory.Data,
               });
 
-              let storagePath = tempFilename;
-              let previewPath: string | undefined;
-
-              if (dataFile.uri) {
-                storagePath = dataFile.uri;
-                previewPath = Capacitor.convertFileSrc(dataFile.uri);
-              }
-
-              if (!previewPath) {
-                try {
-                  const { uri } = await Filesystem.getUri({
-                    directory: Directory.Data,
-                    path: tempFilename,
-                  });
-
-                  if (uri) {
-                    storagePath = uri;
-                    previewPath = Capacitor.convertFileSrc(uri);
-                  }
-                } catch (getUriError) {
-                  console.warn(
-                    "No se pudo obtener la URI del archivo en Data Directory:",
-                    getUriError
-                  );
-                }
-              }
-
-              const resolvedPreviewPath = previewPath ?? image.webPath ?? dataUrl;
+              const filePath =
+                savedFile.uri || `${Directory.Data}/${tempFilename}`;
+              const previewPath = Capacitor.convertFileSrc(filePath);
+              const resolvedPreviewPath = previewPath ?? image.webPath;
 
               if (!resolvedPreviewPath) {
                 throw new Error("No se pudo resolver la ruta de la imagen");
               }
 
-              // Guardamos únicamente el nombre del archivo para facilitar la lectura posterior
-              const storedFileName = storagePath.substring(
-                storagePath.lastIndexOf("/") + 1
-              );
-
               setImagenPreview([resolvedPreviewPath]);
-              setImagenesStorage([storedFileName]);
-
-              if (Capacitor.getPlatform() === "android") {
-                try {
-                  await ensureExternalStoragePermission();
-
-                  const today = new Date();
-                  const padNumber = (value: number) =>
-                    value.toString().padStart(2, "0");
-                  const todayFolder = `${today.getFullYear()}-${padNumber(
-                    today.getMonth() + 1
-                  )}-${padNumber(today.getDate())}`;
-                  const galleryFolder = `Pictures/Desayunos/${todayFolder}`;
-
-                  try {
-                    await Filesystem.mkdir({
-                      path: galleryFolder,
-                      directory: Directory.ExternalStorage,
-                      recursive: true,
-                    });
-                  } catch (mkdirError: any) {
-                    const message = mkdirError?.message || "";
-                    if (
-                      !message.includes("EEXIST") &&
-                      !message.includes("exists")
-                    ) {
-                      console.warn(
-                        "Error al crear la carpeta de la galería:",
-                        mkdirError
-                      );
-                    }
-                  }
-
-                  const galleryPath = `${galleryFolder}/${tempFilename}`;
-
-                  await Filesystem.writeFile({
-                    path: galleryPath,
-                    data: base64Image,
-                    directory: Directory.ExternalStorage,
-                    recursive: true,
-                  });
-                } catch (androidSaveError) {
-                  console.warn(
-                    "No se pudo guardar la imagen en la galería del dispositivo:",
-                    androidSaveError
-                  );
-                }
-              }
-            } catch (imageProcessingError) {
-              console.error(
-                "Error al procesar la imagen capturada:",
-                imageProcessingError
-              );
-              presentAlert({
-                header: "Error",
-                message: "No se pudo procesar la imagen capturada.",
-                cssClass: "alert-android",
-                buttons: ["Ok"],
-              });
-              setNumImagenes((prev) => (prev > 0 ? prev - 1 : 0));
+              setImagenesStorage([filePath]);
             }
           };
 
