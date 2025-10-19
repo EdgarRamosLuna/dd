@@ -9,7 +9,7 @@ interface FirmaCanvasProps {
 
 const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
   onGuardarFirma,
-  altura = 150,
+  altura = 250,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contenedorRef = useRef<HTMLDivElement>(null);
@@ -46,6 +46,20 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
     return () => {
       window.removeEventListener("resize", ajustarTamaño);
     };
+  }, []);
+
+  // Observa cambios de tamaño del contenedor y reajusta el canvas
+  useEffect(() => {
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => ajustarTama��o());
+      if (contenedorRef.current) ro.observe(contenedorRef.current);
+    } else {
+      // Fallback simple: reintenta más tarde por si el layout aún no está listo
+      const t = setTimeout(ajustarTama��o, 150);
+      return () => clearTimeout(t);
+    }
+    return () => { if (ro) ro.disconnect(); };
   }, []);
 
   const getCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -164,6 +178,7 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
           background: "#fff",
           display: "block",
           width: "100%",
+          height: `${altura}px`,
           touchAction: "none",
           userSelect: "none",
         }}
