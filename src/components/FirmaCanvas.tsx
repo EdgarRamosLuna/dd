@@ -15,20 +15,27 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
   const contenedorRef = useRef<HTMLDivElement>(null);
   const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
   const isDrawing = useRef(false);
+  const activePointerId = useRef<number | null>(null);
 
   const ajustarTamaño = () => {
     const canvas = canvasRef.current;
     const contenedor = contenedorRef.current;
     if (!canvas || !contenedor) return;
 
-    canvas.width = contenedor.offsetWidth;
-    canvas.height = altura;
+    const dpr = window.devicePixelRatio || 1;
+    const width = contenedor.offsetWidth;
+    const height = altura;
+    canvas.width = Math.max(1, Math.floor(width * dpr));
+    canvas.height = Math.max(1, Math.floor(height * dpr));
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
 
     const contexto = canvas.getContext("2d");
     if (contexto) {
       contexto.lineCap = "round";
       contexto.lineWidth = 2;
       contexto.strokeStyle = "#000";
+      contexto.setTransform(dpr, 0, 0, dpr, 0, 0);
       setCtx(contexto);
     }
   };
@@ -102,6 +109,40 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
     detenerDibujo();
   };
 
+  // Pointer Events (unifica mouse/touch/pen)
+  const getPointerCoords = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = canvasRef.current!.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
+
+  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!ctx) return;
+    e.preventDefault();
+    activePointerId.current = e.pointerId;
+    try { (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId); } catch {}
+    const { x, y } = getPointerCoords(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    isDrawing.current = true;
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!ctx || !isDrawing.current) return;
+    if (activePointerId.current !== e.pointerId) return;
+    e.preventDefault();
+    const { x, y } = getPointerCoords(e);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (activePointerId.current !== e.pointerId) return;
+    e.preventDefault();
+    try { (e.target as HTMLCanvasElement).releasePointerCapture(e.pointerId); } catch {}
+    activePointerId.current = null;
+    detenerDibujo();
+  };
+
   const limpiarCanvas = () => {
     if (!ctx || !canvasRef.current) return;
     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
@@ -126,6 +167,10 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
           touchAction: "none",
           userSelect: "none",
         }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
         onMouseDown={comenzarDibujo}
         onMouseMove={dibujar}
         onMouseUp={detenerDibujo}
