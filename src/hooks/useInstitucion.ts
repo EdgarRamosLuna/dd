@@ -1,20 +1,14 @@
 // src/hooks/useInstitucion.ts
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useIonAlert } from "@ionic/react";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
-import {
-  Filesystem,
-  Directory,
-  PermissionStatus,
-} from "@capacitor/filesystem";
+import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Capacitor } from "@capacitor/core";
 import { Preferences } from "@capacitor/preferences";
 import { useHistory } from "react-router-dom";
 
 export const useInstitucion = (institucionData: any, instId: string) => {
-  // -----------------------------
-  // 👥 Estados principales
-  // -----------------------------
+  // Estados principales
   const [datosInst, setDatosInst] = useState<any>(institucionData || {});
   const [arregloProductos, setArregloProductos] = useState<any[]>([]);
   const [imagenPreview, setImagenPreview] = useState<string[]>([]);
@@ -23,20 +17,15 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [firmaPreview, setFirmaPreview] = useState<string | null>(null);
   const [numImagenes, setNumImagenes] = useState(0);
 
-  // -----------------------------
-  // 🔔 Hooks auxiliares
-  // -----------------------------
+  // Hooks auxiliares
   const [presentAlert] = useIonAlert();
   const history = useHistory();
 
-  // -----------------------------
-  // 🔧 Inicializar datos de productos
-  // -----------------------------
+  // Inicializar datos de productos
   useEffect(() => {
     if (institucionData) {
       const productosAgregar: any[] = [];
-
-      institucionData.productos.forEach((item: any) => {
+      institucionData.productos?.forEach((item: any) => {
         const producto: any = {};
         producto.uid = item.dipid;
         producto.nombre = item.producto;
@@ -44,28 +33,19 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         producto.entregado = item.entregado;
         productosAgregar.push(producto);
       });
-
       setArregloProductos(productosAgregar);
     }
   }, [institucionData]);
 
-  // -----------------------------
-  // 📥 Cargar imágenes y firma guardadas
-  // -----------------------------
+  // Cargar imágenes y firma guardadas
   const cargarImagenesGuardadas = async () => {
     try {
       const { value } = await Preferences.get({ key: "imagenes_subir" });
-
       if (value && value !== "") {
         const imagenesSubir = JSON.parse(value);
-        const imagenesInst = imagenesSubir.find(
-          (x: any) => x.inst_id === instId
-        );
-
+        const imagenesInst = imagenesSubir.find((x: any) => x.inst_id === instId);
         if (imagenesInst) {
-          const imagenesParaMostrar = (
-            imagenesInst.imagenes_mostrar || []
-          ).slice(0, 1);
+          const imagenesParaMostrar = (imagenesInst.imagenes_mostrar || []).slice(0, 1);
           setImagenesGuardadas(imagenesParaMostrar);
           setNumImagenes(imagenesParaMostrar.length);
           setImagenPreview([]);
@@ -80,35 +60,23 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     }
   };
 
-  // -----------------------------
-  // ✍️ Función para que el componente de firma guarde el dataURL
-  // -----------------------------
+  // Firma desde componente hijo
   const handleGuardarFirma = (dataUrl: string) => {
     setFirmaPreview(dataUrl);
-    // También inyectamos en datosInst para que lo muestre la UI
-    setDatosInst((prev: any) => ({
-      ...prev,
-      firma: dataUrl,
-    }));
+    setDatosInst((prev: any) => ({ ...prev, firma: dataUrl }));
   };
 
-  // -----------------------------
-  // 🖋️ Rellenar con valor máximo
-  // -----------------------------
+  // Rellenar con valor máximo
   const llenarMaximo = (index: number) => {
     const newDatosInst = { ...datosInst };
-    newDatosInst.productos[index].entregado =
-      newDatosInst.productos[index].cantidad;
+    newDatosInst.productos[index].entregado = newDatosInst.productos[index].cantidad;
     setDatosInst(newDatosInst);
   };
 
-  // -----------------------------
-  // 🔢 Actualizar valor de producto
-  // -----------------------------
+  // Actualizar valor de producto
   const updateList = (event: CustomEvent, index: number) => {
     const format = /^\d*\.?\d*$/;
-    const value = event.detail.value;
-
+    const value = (event as any).detail?.value ?? "";
     if (format.test(value)) {
       const newDatosInst = { ...datosInst };
       newDatosInst.productos[index].entregado = value;
@@ -119,35 +87,23 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
 
-  // -----------------------------
-  // 💾 Guardar productos (y firma) en Preferences
-  // -----------------------------
+  // Guardar productos (y firma) en Preferences
   const guardarProductos = async () => {
-    // Verificar que haya al menos una imagen
     if (numImagenes < 1) {
       presentAlert({
         header: "Sin imágenes",
-        message:
-          "No puedes guardar sin antes haber tomado al menos una imagen.",
+        message: "No puedes guardar sin antes haber tomado al menos una imagen.",
         cssClass: "alert-android",
         buttons: ["Ok"],
       });
       return;
     }
 
-    // Obtener fecha y hora actual
     const today = new Date();
-    const date =
-      today.getFullYear() +
-      "-" +
-      (today.getMonth() + 1) +
-      "-" +
-      today.getDate();
-    const time =
-      today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
-    const dateTime = date + " " + time;
+    const date = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+    const time = `${today.getHours()}:${today.getMinutes()}:${today.getSeconds()}`;
+    const dateTime = `${date} ${time}`;
 
-    // Verificar que se haya ingresado quien recibe
     if (!datosInst.quien_recibe || datosInst.quien_recibe === "") {
       presentAlert({
         header: "Falta información",
@@ -159,9 +115,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       return;
     }
 
-    // Validar los productos
-    for (let i = 0; i < datosInst.productos.length; i++) {
-      // Verificar que sea un número
+    for (let i = 0; i < (datosInst.productos?.length || 0); i++) {
       if (isNaN(datosInst.productos[i].entregado)) {
         presentAlert({
           header: "Información incorrecta",
@@ -172,11 +126,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         });
         return;
       }
-
-      // Verificar que no sea mayor a la cantidad a entregar
-      if (
-        +datosInst.productos[i].entregado > +datosInst.productos[i].cantidad
-      ) {
+      if (+datosInst.productos[i].entregado > +datosInst.productos[i].cantidad) {
         presentAlert({
           header: "Información incorrecta",
           message:
@@ -188,7 +138,6 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       }
     }
 
-    // Incluir la firma en los datos guardados
     const newDatosInst = {
       ...datosInst,
       save_chofer: "1",
@@ -196,64 +145,37 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       ...(firmaPreview ? { firma: firmaPreview } : {}),
     };
     setDatosInst(newDatosInst);
-
-    // Guardar en el almacenamiento
     await guardar_storage_productos(newDatosInst);
   };
 
-  // -----------------------------
-  // 💾 Lógica para guardar en Preferences
-  // -----------------------------
+  // Guardar en Preferences
   const guardar_storage_productos = async (datosActualizados: any) => {
     try {
-      // Obtener datos actuales de instituciones guardadas
-      const { value: distDatosValue } = await Preferences.get({
-        key: "distDatos",
-      });
+      const { value: distDatosValue } = await Preferences.get({ key: "distDatos" });
       const distDatos = distDatosValue ? JSON.parse(distDatosValue) : [];
 
-      // Actualizar el elemento correspondiente
-      const index = distDatos.findIndex(
-        (item: any) => item.dist_inst_id === instId
-      );
+      const index = distDatos.findIndex((item: any) => item.dist_inst_id === instId);
       if (index !== -1) {
         distDatos[index] = datosActualizados;
       }
 
-      // Marcar que hay información por guardar
       await Preferences.set({ key: "info_por_guardar", value: "1" });
+      await Preferences.set({ key: "distDatos", value: JSON.stringify(distDatos) });
 
-      // Guardar los datos actualizados
-      await Preferences.set({
-        key: "distDatos",
-        value: JSON.stringify(distDatos),
-      });
-
-      // Preparar objeto de imágenes y firma para guardar
       const objetoImagenes: any = {
         imagenes: imagenesStorage,
         imagenes_mostrar: imagenPreview,
         inst_id: instId,
       };
-      // Si existe firma, la agregamos
-      if (firmaPreview) {
-        objetoImagenes.firma = firmaPreview;
-      }
+      if (firmaPreview) objetoImagenes.firma = firmaPreview;
 
-      // Guardar imágenes (y firma) en Preferences
       const { value } = await Preferences.get({ key: "imagenes_subir" });
       let arregloImagenes: any[] = [];
-
       if (!value || value === "") {
         arregloImagenes.push(objetoImagenes);
       } else {
         arregloImagenes = JSON.parse(value);
-
-        // Verificar si ya existe un registro para esta institución
-        const existingIndex = arregloImagenes.findIndex(
-          (item: any) => item.inst_id === instId
-        );
-
+        const existingIndex = arregloImagenes.findIndex((item: any) => item.inst_id === instId);
         if (existingIndex !== -1) {
           arregloImagenes[existingIndex] = objetoImagenes;
         } else {
@@ -261,12 +183,8 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         }
       }
 
-      await Preferences.set({
-        key: "imagenes_subir",
-        value: JSON.stringify(arregloImagenes),
-      });
+      await Preferences.set({ key: "imagenes_subir", value: JSON.stringify(arregloImagenes) });
 
-      // Mostrar alerta de éxito y regresar
       presentAlert({
         header: "Datos almacenados en el dispositivo",
         message:
@@ -292,23 +210,6 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     }
   };
 
-  const ensureExternalStoragePermission = async () => {
-    try {
-      const permissions: PermissionStatus = await Filesystem.checkPermissions();
-
-      if (permissions.publicStorage !== "granted") {
-        const requestResult = await Filesystem.requestPermissions();
-
-        if (requestResult.publicStorage !== "granted") {
-          throw new Error("Permiso de almacenamiento denegado");
-        }
-      }
-    } catch (permissionError) {
-      console.error("Error al verificar permisos de almacenamiento:", permissionError);
-      throw permissionError;
-    }
-  };
-
   const eliminarImagen = (index: number) => {
     setImagenPreview((prev) => prev.filter((_, idx) => idx !== index));
     setImagenesStorage((prev) => prev.filter((_, idx) => idx !== index));
@@ -318,39 +219,26 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const eliminarImagenGuardada = async (index: number) => {
     try {
       const { value } = await Preferences.get({ key: "imagenes_subir" });
-
       if (value && value !== "") {
         const arregloImagenes = JSON.parse(value);
-        const instIndex = arregloImagenes.findIndex(
-          (item: any) => item.inst_id === instId
-        );
-
+        const instIndex = arregloImagenes.findIndex((item: any) => item.inst_id === instId);
         if (instIndex !== -1) {
           const imagenesInst = arregloImagenes[instIndex];
           const nuevasImagenes = [...(imagenesInst.imagenes || [])];
-          const nuevasImagenesMostrar = [
-            ...(imagenesInst.imagenes_mostrar || []),
-          ];
-
+          const nuevasImagenesMostrar = [...(imagenesInst.imagenes_mostrar || [])];
           nuevasImagenes.splice(index, 1);
           nuevasImagenesMostrar.splice(index, 1);
-
           arregloImagenes[instIndex] = {
             ...imagenesInst,
             imagenes: nuevasImagenes,
             imagenes_mostrar: nuevasImagenesMostrar,
           };
-
-          await Preferences.set({
-            key: "imagenes_subir",
-            value: JSON.stringify(arregloImagenes),
-          });
+          await Preferences.set({ key: "imagenes_subir", value: JSON.stringify(arregloImagenes) });
         }
       }
     } catch (err) {
       console.error("Error al eliminar imagen guardada:", err);
     }
-
     setImagenesGuardadas((prev) => prev.filter((_, idx) => idx !== index));
     setImagenPreview([]);
     setImagenesStorage([]);
@@ -362,8 +250,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     if (numImagenes >= 1) {
       presentAlert({
         header: "Máximo de imágenes",
-        message:
-          "Solo se puede tomar una foto. Elimina la imagen actual para capturar una nueva.",
+        message: "Solo se puede tomar una foto. Elimina la imagen actual para capturar una nueva.",
         cssClass: "alert-android",
         buttons: ["Ok"],
       });
@@ -379,85 +266,35 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       });
 
       if (image.webPath) {
-        // Incrementar el contador de imágenes
         setNumImagenes((prevNum) => prevNum + 1);
-
-        // Generar un nombre de archivo único
         const tempFilename = `image_${Date.now()}.jpg`;
-
         try {
-          // Convertir la URI a un blob
           const response = await fetch(image.webPath);
           const blob = await response.blob();
-
-          // Crear un objeto File
           const file = new File([blob], tempFilename, { type: "image/jpeg" });
-
-          // Guardar el archivo en el sistema de archivos
           const reader = new FileReader();
           reader.onloadend = async () => {
             try {
-              const dataUrl =
-                typeof reader.result === "string" ? reader.result : "";
+              const dataUrl = typeof reader.result === "string" ? reader.result : "";
+              if (!dataUrl) throw new Error("No se pudo leer el contenido de la imagen");
+              const commaIndex = dataUrl.indexOf(",");
+              const base64Image = commaIndex !== -1 ? dataUrl.substring(commaIndex + 1) : dataUrl;
 
-              if (!dataUrl) {
-                throw new Error("No se pudo leer el contenido de la imagen");
-              }
-
-              const galleryPath = `${galleryFolder}/${tempFilename}`;
-              try {
-                await Filesystem.writeFile({
-                  path: galleryPath,
-                  data: base64Image,
-                  directory: Directory.ExternalStorage,
-                  recursive: true,
-                });
-
-                const { uri } = await Filesystem.getUri({
-                  directory: Directory.ExternalStorage,
-                  path: galleryPath,
-                });
-
-                const filePath =
-                  uri || `${Directory.ExternalStorage}/${galleryPath}`;
-                const previewPath = Capacitor.convertFileSrc(filePath);
-                const resolvedPreviewPath = previewPath ?? image.webPath;
-
-                if (!resolvedPreviewPath) {
-                  throw new Error("No se pudo resolver la ruta de la imagen");
-                }
-
-                setImagenPreview([resolvedPreviewPath]);
-                setImagenesStorage([filePath]);
-              } catch (saveError) {
-                console.error(
-                  "Error al guardar la imagen en la galería:",
-                  saveError
-                );
-              }
-
-              const base64Image = dataUrl.substring(commaIndex + 1);
-
-              const dataFile = await Filesystem.writeFile({
+              const saved = await Filesystem.writeFile({
                 path: tempFilename,
                 data: base64Image,
                 directory: Directory.Data,
               });
 
-              const filePath =
-                savedFile.uri || `${Directory.Data}/${tempFilename}`;
+              const filePath = saved.uri || `${Directory.Data}/${tempFilename}`;
               const previewPath = Capacitor.convertFileSrc(filePath);
               const resolvedPreviewPath = previewPath ?? image.webPath;
-
-              if (!resolvedPreviewPath) {
-                throw new Error("No se pudo resolver la ruta de la imagen");
-              }
-
               setImagenPreview([resolvedPreviewPath]);
               setImagenesStorage([filePath]);
+            } catch (saveError) {
+              console.error("Error al guardar la imagen:", saveError);
             }
           };
-
           reader.readAsDataURL(file);
         } catch (err) {
           console.error("Error al guardar la imagen:", err);
@@ -468,19 +305,15 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     }
   };
 
-  // -----------------------------
-  // ✏️ Actualizar observaciones
-  // -----------------------------
+  // Actualizar observaciones
   const handleObservacionesChange = (event: CustomEvent) => {
-    const newDatosInst = { ...datosInst, observaciones: event.detail.value };
+    const newDatosInst = { ...datosInst, observaciones: (event as any).detail?.value };
     setDatosInst(newDatosInst);
   };
 
-  // -----------------------------
-  // 👤 Actualizar quien recibe
-  // -----------------------------
+  // Actualizar quien recibe
   const handleQuienRecibeChange = (event: CustomEvent) => {
-    const newDatosInst = { ...datosInst, quien_recibe: event.detail.value };
+    const newDatosInst = { ...datosInst, quien_recibe: (event as any).detail?.value };
     setDatosInst(newDatosInst);
   };
 
@@ -506,3 +339,4 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     alertMessage,
   };
 };
+
