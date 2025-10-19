@@ -49,9 +49,28 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
     };
   };
 
+  // Coordenadas para eventos táctiles
+  const getTouchCoords = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const touch = e.touches[0] || e.changedTouches[0];
+    return {
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top,
+    };
+  };
+
   const comenzarDibujo = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!ctx) return;
     const { x, y } = getCoords(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    isDrawing.current = true;
+  };
+
+  const comenzarDibujoTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!ctx) return;
+    e.preventDefault();
+    const { x, y } = getTouchCoords(e);
     ctx.beginPath();
     ctx.moveTo(x, y);
     isDrawing.current = true;
@@ -64,10 +83,23 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
     ctx.stroke();
   };
 
+  const dibujarTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!ctx || !isDrawing.current) return;
+    e.preventDefault();
+    const { x, y } = getTouchCoords(e);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
   const detenerDibujo = () => {
     if (!ctx) return;
     isDrawing.current = false;
     ctx.closePath();
+  };
+
+  const detenerDibujoTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    detenerDibujo();
   };
 
   const limpiarCanvas = () => {
@@ -91,11 +123,17 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
           background: "#fff",
           display: "block",
           width: "100%",
+          touchAction: "none",
+          userSelect: "none",
         }}
         onMouseDown={comenzarDibujo}
         onMouseMove={dibujar}
         onMouseUp={detenerDibujo}
         onMouseLeave={detenerDibujo}
+        onTouchStart={comenzarDibujoTouch}
+        onTouchMove={dibujarTouch}
+        onTouchEnd={detenerDibujoTouch}
+        onTouchCancel={detenerDibujoTouch}
       />
       <div style={{ marginTop: 10, display: "flex", gap: "0.5rem" }}>
         <IonButton onClick={guardarFirma}>
