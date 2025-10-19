@@ -280,17 +280,61 @@ export const useInstitucion = (institucionData: any, instId: string) => {
               const commaIndex = dataUrl.indexOf(",");
               const base64Image = commaIndex !== -1 ? dataUrl.substring(commaIndex + 1) : dataUrl;
 
-              const saved = await Filesystem.writeFile({
-                path: tempFilename,
-                data: base64Image,
-                directory: Directory.Data,
-              });
+              // Intenta guardar en almacenamiento externo en carpeta por fecha
+              const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+              const now = new Date();
+              const dateFolder = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+              const baseFolder = `Pictures/Distribuciones/${dateFolder}`; // Carpeta destino
 
-              const filePath = saved.uri || `${Directory.Data}/${tempFilename}`;
-              const previewPath = Capacitor.convertFileSrc(filePath);
-              const resolvedPreviewPath = previewPath ?? image.webPath;
-              setImagenPreview([resolvedPreviewPath]);
-              setImagenesStorage([filePath]);
+              // Asegura permisos para almacenamiento público (Android)
+              try {
+                const perms: any = await Filesystem.checkPermissions();
+                if (perms.publicStorage !== "granted") {
+                  const req: any = await Filesystem.requestPermissions();
+                  if (req.publicStorage !== "granted") {
+                    throw new Error("Permiso de almacenamiento público denegado");
+                  }
+                }
+
+                // Crea carpeta y guarda el archivo
+                await Filesystem.mkdir({
+                  path: baseFolder,
+                  directory: Directory.ExternalStorage,
+                  recursive: true,
+                }).catch(() => {});
+
+                const externalPath = `${baseFolder}/${tempFilename}`;
+                const savedExternal = await Filesystem.writeFile({
+                  path: externalPath,
+                  data: base64Image,
+                  directory: Directory.ExternalStorage,
+                  recursive: true,
+                });
+
+                const { uri } = await Filesystem.getUri({
+                  directory: Directory.ExternalStorage,
+                  path: externalPath,
+                });
+
+                const filePath = uri || savedExternal.uri || `${Directory.ExternalStorage}/${externalPath}`;
+                const previewPath = Capacitor.convertFileSrc(filePath);
+                const resolvedPreviewPath = previewPath ?? image.webPath;
+                setImagenPreview([resolvedPreviewPath]);
+                setImagenesStorage([filePath]);
+              } catch (externalErr) {
+                // Fallback: guarda en almacenamiento interno de la app
+                const saved = await Filesystem.writeFile({
+                  path: tempFilename,
+                  data: base64Image,
+                  directory: Directory.Data,
+                });
+
+                const filePath = saved.uri || `${Directory.Data}/${tempFilename}`;
+                const previewPath = Capacitor.convertFileSrc(filePath);
+                const resolvedPreviewPath = previewPath ?? image.webPath;
+                setImagenPreview([resolvedPreviewPath]);
+                setImagenesStorage([filePath]);
+              }
             } catch (saveError) {
               console.error("Error al guardar la imagen:", saveError);
             }
@@ -339,4 +383,3 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     alertMessage,
   };
 };
-
