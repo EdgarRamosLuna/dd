@@ -17,67 +17,61 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
   const isDrawing = useRef(false);
   const activePointerId = useRef<number | null>(null);
 
-  const ajustarTamaño = () => {
+  const ajustarTamano = () => {
     const canvas = canvasRef.current;
     const contenedor = contenedorRef.current;
-    if (!canvas || !contenedor) return;
+    if (!canvas) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const width = contenedor.offsetWidth;
-    const height = altura;
-    canvas.width = Math.max(1, Math.floor(width * dpr));
-    canvas.height = Math.max(1, Math.floor(height * dpr));
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
+    const widthCSS = Math.max(1, (contenedor?.offsetWidth || canvas.parentElement?.clientWidth || 300));
+    const heightCSS = altura;
+
+    canvas.width = Math.max(1, Math.floor(widthCSS * dpr));
+    canvas.height = Math.max(1, Math.floor(heightCSS * dpr));
+    canvas.style.width = `${widthCSS}px`;
+    canvas.style.height = `${heightCSS}px`;
 
     const contexto = canvas.getContext("2d");
     if (contexto) {
+      contexto.setTransform(dpr, 0, 0, dpr, 0, 0);
       contexto.lineCap = "round";
       contexto.lineWidth = 2;
       contexto.strokeStyle = "#000";
-      contexto.setTransform(dpr, 0, 0, dpr, 0, 0);
       setCtx(contexto);
     }
   };
 
   useEffect(() => {
-    ajustarTamaño();
-    window.addEventListener("resize", ajustarTamaño);
+    ajustarTamano();
+    window.addEventListener("resize", ajustarTamano);
     return () => {
-      window.removeEventListener("resize", ajustarTamaño);
+      window.removeEventListener("resize", ajustarTamano);
     };
   }, []);
 
-  // Observa cambios de tamaño del contenedor y reajusta el canvas
+  // Reajuste cuando el contenedor cambia de tamano (layout asincrono)
   useEffect(() => {
-    let ro: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(() => ajustarTama��o());
-      if (contenedorRef.current) ro.observe(contenedorRef.current);
-    } else {
-      // Fallback simple: reintenta más tarde por si el layout aún no está listo
-      const t = setTimeout(ajustarTama��o, 150);
+    const cont = contenedorRef.current;
+    if (!cont || typeof ResizeObserver === "undefined") {
+      const t = setTimeout(ajustarTamano, 150);
       return () => clearTimeout(t);
     }
-    return () => { if (ro) ro.disconnect(); };
+    const ro = new ResizeObserver(() => ajustarTamano());
+    ro.observe(cont);
+    return () => ro.disconnect();
   }, []);
 
+  // Coordenadas para mouse
   const getCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();
-    return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
-  // Coordenadas para eventos táctiles
+  // Coordenadas para eventos tactiles
   const getTouchCoords = (e: React.TouchEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();
     const touch = e.touches[0] || e.changedTouches[0];
-    return {
-      x: touch.clientX - rect.left,
-      y: touch.clientY - rect.top,
-    };
+    return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
   };
 
   const comenzarDibujo = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -208,3 +202,4 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
 };
 
 export default FirmaCanvas;
+
