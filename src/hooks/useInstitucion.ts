@@ -320,7 +320,15 @@ export const useInstitucion = (institucionData: any, instId: string) => {
                 const previewPath = Capacitor.convertFileSrc(filePath);
                 const resolvedPreviewPath = previewPath ?? image.webPath;
                 setImagenPreview([resolvedPreviewPath]);
-                setImagenesStorage([filePath]);
+
+                // Además, guarda una copia en el almacenamiento interno de la app
+                await Filesystem.writeFile({
+                  path: tempFilename,
+                  data: base64Image,
+                  directory: Directory.Data,
+                });
+                // Para el flujo de subida, almacenamos solo el nombre de archivo
+                setImagenesStorage([tempFilename]);
               } catch (externalErr) {
                 // Fallback: guarda en almacenamiento interno de la app
                 const saved = await Filesystem.writeFile({
@@ -333,7 +341,8 @@ export const useInstitucion = (institucionData: any, instId: string) => {
                 const previewPath = Capacitor.convertFileSrc(filePath);
                 const resolvedPreviewPath = previewPath ?? image.webPath;
                 setImagenPreview([resolvedPreviewPath]);
-                setImagenesStorage([filePath]);
+                // Para el flujo de subida, almacenamos solo el nombre de archivo
+                setImagenesStorage([tempFilename]);
               }
             } catch (saveError) {
               console.error("Error al guardar la imagen:", saveError);
