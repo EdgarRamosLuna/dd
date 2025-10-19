@@ -60,16 +60,19 @@ export const useDistribucionHook = () => {
         setError(data.mensaje || "Error desconocido");
         return { error: true, mensaje: data.mensaje };
       } else {
-        // Guardar datos en el estado y en el storage
-        if (data.datos) {
-          setDistDatos(data.datos);
-          await Preferences.set({
-            key: "distDatos",
-            value: JSON.stringify(data.datos),
-          });
+        // Respuesta exitosa: distinguir entre con datos y sin datos
+        const lista = Array.isArray(data.datos) ? data.datos : [];
+
+        // Persistimos siempre un arreglo (incluso vacío)
+        setDistDatos(lista);
+        await Preferences.set({ key: "distDatos", value: JSON.stringify(lista) });
+
+        if (lista.length === 0) {
+          // Éxito sin datos: devolvemos mensaje específico sin marcar error
+          return { error: false, datos: [], mensaje: "No hay información disponible" };
         }
 
-        return data;
+        return { error: false, datos: lista };
       }
     } catch (err: any) {
       // Añadir tipo any

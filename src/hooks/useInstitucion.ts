@@ -104,6 +104,18 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     const time = `${today.getHours()}:${today.getMinutes()}:${today.getSeconds()}`;
     const dateTime = `${date} ${time}`;
 
+    // Validar firma obligatoria
+    if (!firmaPreview && !datosInst?.firma) {
+      presentAlert({
+        header: "Falta firma",
+        message:
+          "Debes capturar y guardar la firma de quien recibe antes de continuar.",
+        cssClass: "alert-android",
+        buttons: ["Ok"],
+      });
+      return;
+    }
+
     if (!datosInst.quien_recibe || datosInst.quien_recibe === "") {
       presentAlert({
         header: "Falta información",
@@ -142,7 +154,11 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       ...datosInst,
       save_chofer: "1",
       fecha_guardado: dateTime,
-      ...(firmaPreview ? { firma: firmaPreview } : {}),
+      ...(firmaPreview
+        ? { firma: firmaPreview }
+        : datosInst?.firma
+        ? { firma: datosInst.firma }
+        : {}),
     };
     setDatosInst(newDatosInst);
     await guardar_storage_productos(newDatosInst);

@@ -178,11 +178,20 @@ const Home: React.FC = () => {
         setItems(data.datos);
         setSinInstituciones(data.datos.length === 0);
         // 3) Aviso de éxito
+        if (data.datos.length === 0) {
+          presentAlert({
+            header: "Sin información",
+            message: data.mensaje ?? "No hay información disponible para mostrar.",
+            cssClass: "alert-android",
+            buttons: ["Ok"],
+          });
+        } else {
         crearToast(
           "Los datos se han descargado de manera exitosa.",
           2500,
           "toastVerde"
         );
+        }
       } else {
         // Manejamos el caso de error devuelto por la API
         //       mostrarAlerta(data.mensaje ?? "Ocurrió un error desconocido", "error");
