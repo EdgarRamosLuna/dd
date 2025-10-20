@@ -45,7 +45,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         const imagenesSubir = JSON.parse(value);
         const imagenesInst = imagenesSubir.find((x: any) => x.inst_id === instId);
         if (imagenesInst) {
-          const imagenesParaMostrar = (imagenesInst.imagenes_mostrar || []).slice(0, 1);
+          const imagenesParaMostrar = (imagenesInst.imagenes_mostrar || []).slice(0, 2);
           setImagenesGuardadas(imagenesParaMostrar);
           setNumImagenes(imagenesParaMostrar.length);
           setImagenPreview([]);
@@ -89,10 +89,10 @@ export const useInstitucion = (institucionData: any, instId: string) => {
 
   // Guardar productos (y firma) en Preferences
   const guardarProductos = async () => {
-    if (numImagenes < 1) {
+    if (numImagenes < 2) {
       presentAlert({
-        header: "Sin imágenes",
-        message: "No puedes guardar sin antes haber tomado al menos una imagen.",
+        header: "Faltan imágenes",
+        message: "Debes capturar al menos dos imágenes antes de guardar.",
         cssClass: "alert-android",
         buttons: ["Ok"],
       });
@@ -178,25 +178,29 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       await Preferences.set({ key: "info_por_guardar", value: "1" });
       await Preferences.set({ key: "distDatos", value: JSON.stringify(distDatos) });
 
+      // Merge con imágenes previamente guardadas para esta institución y limitar a 2
+      const { value } = await Preferences.get({ key: "imagenes_subir" });
+      let arregloImagenes: any[] = value && value !== "" ? JSON.parse(value) : [];
+      const existingIndex = arregloImagenes.findIndex((item: any) => item.inst_id === instId);
+
+      const prevImagenes = existingIndex !== -1 ? (arregloImagenes[existingIndex].imagenes || []) : [];
+      const prevImagenesMostrar = existingIndex !== -1 ? (arregloImagenes[existingIndex].imagenes_mostrar || []) : [];
+
+      // Combinar previas + nuevas, respetando máximo 2
+      const combinadasImagenes = [...prevImagenes, ...imagenesStorage].slice(0, 2);
+      const combinadasImagenesMostrar = [...prevImagenesMostrar, ...imagenPreview].slice(0, 2);
+
       const objetoImagenes: any = {
-        imagenes: imagenesStorage,
-        imagenes_mostrar: imagenPreview,
+        imagenes: combinadasImagenes,
+        imagenes_mostrar: combinadasImagenesMostrar,
         inst_id: instId,
       };
       if (firmaPreview) objetoImagenes.firma = firmaPreview;
 
-      const { value } = await Preferences.get({ key: "imagenes_subir" });
-      let arregloImagenes: any[] = [];
-      if (!value || value === "") {
-        arregloImagenes.push(objetoImagenes);
+      if (existingIndex !== -1) {
+        arregloImagenes[existingIndex] = objetoImagenes;
       } else {
-        arregloImagenes = JSON.parse(value);
-        const existingIndex = arregloImagenes.findIndex((item: any) => item.inst_id === instId);
-        if (existingIndex !== -1) {
-          arregloImagenes[existingIndex] = objetoImagenes;
-        } else {
-          arregloImagenes.push(objetoImagenes);
-        }
+        arregloImagenes.push(objetoImagenes);
       }
 
       await Preferences.set({ key: "imagenes_subir", value: JSON.stringify(arregloImagenes) });
@@ -263,10 +267,10 @@ export const useInstitucion = (institucionData: any, instId: string) => {
 
   // Mostrar la cámara para tomar fotos
   const mostrar_camara = async () => {
-    if (numImagenes >= 1) {
+    if (numImagenes >= 2) {
       presentAlert({
         header: "Máximo de imágenes",
-        message: "Solo se puede tomar una foto. Elimina la imagen actual para capturar una nueva.",
+        message: "Solo puedes tomar hasta dos fotos. Elimina alguna para capturar otra.",
         cssClass: "alert-android",
         buttons: ["Ok"],
       });
@@ -335,7 +339,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
                 const filePath = uri || savedExternal.uri || `${Directory.ExternalStorage}/${externalPath}`;
                 const previewPath = Capacitor.convertFileSrc(filePath);
                 const resolvedPreviewPath = previewPath ?? image.webPath;
-                setImagenPreview([resolvedPreviewPath]);
+                setImagenPreview((prev) => [...prev, resolvedPreviewPath]);
 
                 // Además, guarda una copia en el almacenamiento interno de la app
                 await Filesystem.writeFile({
@@ -344,7 +348,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
                   directory: Directory.Data,
                 });
                 // Para el flujo de subida, almacenamos solo el nombre de archivo
-                setImagenesStorage([tempFilename]);
+                setImagenesStorage((prev) => [...prev, tempFilename]);
               } catch (externalErr) {
                 // Fallback: guarda en almacenamiento interno de la app
                 const saved = await Filesystem.writeFile({
@@ -356,9 +360,9 @@ export const useInstitucion = (institucionData: any, instId: string) => {
                 const filePath = saved.uri || `${Directory.Data}/${tempFilename}`;
                 const previewPath = Capacitor.convertFileSrc(filePath);
                 const resolvedPreviewPath = previewPath ?? image.webPath;
-                setImagenPreview([resolvedPreviewPath]);
+                setImagenPreview((prev) => [...prev, resolvedPreviewPath]);
                 // Para el flujo de subida, almacenamos solo el nombre de archivo
-                setImagenesStorage([tempFilename]);
+                setImagenesStorage((prev) => [...prev, tempFilename]);
               }
             } catch (saveError) {
               console.error("Error al guardar la imagen:", saveError);
