@@ -192,22 +192,24 @@ const Institucion: React.FC = () => {
           />
         </div>
 
-        {/* Aquí mostramos la firmaCanvas y la vista previa de la firma */}
-        <div className="firmaCanvasContainer">
-          <label className="lblObs">Firma de quien recibe:</label>
-          <FirmaCanvas onGuardarFirma={handleGuardarFirma} />
-          {firmaPreview && (
-            <img
-              src={firmaPreview}
-              alt="Firma guardada"
-              style={{
-                marginTop: 10,
-                border: "1px solid #ccc",
-                maxWidth: "100%",
-              }}
-            />
-          )}
-        </div>
+        {/* Firma: solo mostrar para instituciones NO completadas (save_chofer === "0") */}
+        {datosInst.save_chofer === "0" && (
+          <div className="firmaCanvasContainer">
+            <label className="lblObs">Firma de quien recibe:</label>
+            <FirmaCanvas onGuardarFirma={handleGuardarFirma} />
+            {firmaPreview && (
+              <img
+                src={firmaPreview}
+                alt="Firma guardada"
+                style={{
+                  marginTop: 10,
+                  border: "1px solid #ccc",
+                  maxWidth: "100%",
+                }}
+              />
+            )}
+          </div>
+        )}
 
         {/* Vista previa de las imágenes tomadas */}
         {imagenPreview && imagenPreview.length > 0 && (
