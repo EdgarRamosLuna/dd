@@ -87,10 +87,30 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     }
   };
 
-  // Firma desde componente hijo
+  // Guarda firma en estado y la publica en la galería con prefijo requerido
   const handleGuardarFirma = (dataUrl: string) => {
     setFirmaPreview(dataUrl);
     setDatosInst((prev: any) => ({ ...prev, firma: dataUrl }));
+
+    // Guardar en dispositivo con nombre: Firma-{clave}-{timestamp}.<ext>
+    (async () => {
+      try {
+        const claveRaw = (datosInst && (datosInst as any).clave) ?? "";
+        const safeClave = String(claveRaw).replace(/[^a-zA-Z0-9_-]/g, "");
+        const ts = Date.now();
+        const m = dataUrl.match(/^data:image\/(.+?);base64,/);
+        const ext0 = (m && m[1]) ? m[1] : "png";
+        const ext = ext0 === "jpeg" ? "jpg" : ext0;
+        const fileName = `Firma-${safeClave}-${ts}.${ext}`;
+
+        await Media.savePhoto({
+          path: dataUrl, // data URL completa
+          fileName,
+        });
+      } catch (e) {
+        console.warn("No se pudo guardar la firma en la galería:", e);
+      }
+    })();
   };
 
   // Rellenar con valor máximo
@@ -186,9 +206,13 @@ export const useInstitucion = (institucionData: any, instId: string) => {
 
     // ✅ Fallback garantizado a Galería (MediaStore)
     try {
+      const claveRaw = (datosInst && (datosInst as any).clave) ?? "";
+      const safeClave = String(claveRaw).replace(/[^a-zA-Z0-9_-]/g, "");
+      const ts = Date.now();
+      const fileName = `Evidencia-${safeClave}-${ts}.jpg`;
       await Media.savePhoto({
         path: `data:image/jpeg;base64,${base64Data}`,
-        fileName: `Distribuciones_${Date.now()}.jpg`,
+        fileName,
       });
     } catch (e) {
       console.warn("No se pudo publicar en MediaStore (se mantiene en sandbox):", e);
