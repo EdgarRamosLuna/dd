@@ -2,30 +2,26 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- ===== Permisos ===== -->
-    <!-- Android 13+ (lectura de medios) -->
+    <!-- Android 13+ (lectura de imágenes de la galería) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
-    <!-- Compatibilidad para Android 12 e inferiores -->
+    <!-- Compat ≤ Android 12 -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-
-    <!-- Escritura en galería para Android 9 e inferiores -->
+    <!-- Escritura ≤ Android 9 (solo por compat) -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
-    <!-- Cámara para capturar fotos -->
+    <!-- Cámara -->
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- Red (si tu app sube info) -->
+    <!-- Red -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!--
-      OPCIONAL (solo si aún dependes de rutas públicas en Android 10):
-      Habilita almacenamiento legacy en Android 10 (API 29). Ignorado en 11+.
-      Si ya migraste a MediaStore + sandbox, puedes quitarlo con seguridad.
-    -->
+    <!-- Cámara opcional para no filtrar dispositivos en Play -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -43,7 +39,6 @@
             android:launchMode="singleTask"
             android:exported="true"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation">
-
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -60,5 +55,4 @@
                 android:resource="@xml/file_paths" />
         </provider>
     </application>
-
 </manifest>

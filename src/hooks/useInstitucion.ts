@@ -1,4 +1,6 @@
 // src/hooks/useInstitucion.ts
+'use client';
+
 import { useEffect, useState } from "react";
 import { useIonAlert } from "@ionic/react";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
@@ -23,10 +25,31 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [presentAlert] = useIonAlert();
   const history = useHistory();
 
+  // ============================================================
+  // Helpers: carpeta dif (sandbox) + normalización de rutas
+  // ============================================================
+  const ensureDifDir = async () => {
+    try {
+      await Filesystem.mkdir({
+        path: "dif",
+        directory: Directory.Data,
+        recursive: true,
+      });
+    } catch (err: any) {
+      // Si ya existe, ignorar
+      const msg = String(err?.message || "");
+      if (!msg.includes("exists") && !msg.includes("AlreadyExists")) {
+        console.warn("mkdir dif:", err);
+      }
+    }
+  };
+
+  const inDif = (name: string) => (name.startsWith("dif/") ? name : `dif/${name}`);
+
   // ---------- helpers robustos ----------
   const statInSandbox = async (name: string) => {
     try {
-      await Filesystem.stat({ path: name, directory: Directory.Data });
+      await Filesystem.stat({ path: inDif(name), directory: Directory.Data });
       return true;
     } catch {
       return false;
@@ -35,9 +58,25 @@ export const useInstitucion = (institucionData: any, instId: string) => {
 
   // Lee base64 de sandbox (para subida)
   const readFromSandbox = async (name: string) => {
-    const { data } = await Filesystem.readFile({ path: name, directory: Directory.Data });
+    const { data } = await Filesystem.readFile({ path: inDif(name), directory: Directory.Data });
     return data as string; // base64
   };
+
+  // ============================================================
+  // Self-check opcional (logs de permisos y plugin)
+  // ============================================================
+  useEffect(() => {
+    (async () => {
+      try {
+        const canUseMedia = typeof (Media as any)?.savePhoto === "function";
+        console.log("[Media plugin] savePhoto disponible:", canUseMedia);
+        const perm = await (Media as any)?.checkPermissions?.();
+        console.log("[Media plugin] permisos actuales:", perm);
+      } catch (e) {
+        console.log("[Media plugin] no disponible o error al checar permisos:", e);
+      }
+    })();
+  }, []);
 
   // ---------- init productos ----------
   useEffect(() => {
@@ -87,37 +126,67 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     }
   };
 
-  // Guarda firma en estado y la publica en la galería con prefijo requerido
+  // ============================================================
+  // FIRMAS: guarda en estado, sandbox /dif y galería álbum "dif"
+  // ============================================================
   const handleGuardarFirma = (dataUrl: string) => {
     setFirmaPreview(dataUrl);
     setDatosInst((prev: any) => ({ ...prev, firma: dataUrl }));
 
-    // Guardar en dispositivo con nombre: Firma-{clave}-{timestamp}.<ext>
     (async () => {
       try {
         const claveRaw = (datosInst && (datosInst as any).clave) ?? "";
         const safeClave = String(claveRaw).replace(/[^a-zA-Z0-9_-]/g, "");
         const ts = Date.now();
+
+        // DataURL -> ext + base64 (sin encabezado)
         const m = dataUrl.match(/^data:image\/(.+?);base64,(.+)$/);
         const ext0 = (m && m[1]) ? m[1] : "png";
         const base64 = (m && m[2]) ? m[2] : dataUrl.replace(/^data:.*;base64,/, "");
         const ext = ext0 === "jpeg" ? "jpg" : ext0;
         const fileName = `Firma-${safeClave}-${ts}.${ext}`;
 
-        // Solicita permiso en Android 13+ (algunos OEM lo requieren para escribir)
-        try {
-          const anyMedia: any = await (Media as any).checkPermissions?.();
-          if (!anyMedia || anyMedia.photos !== "granted") {
-            await (Media as any).requestPermissions?.();
-          }
-        } catch {}
+        await ensureDifDir();
 
-        await Media.savePhoto({
+        // 1) Guarda en sandbox siempre (no perdemos la firma aunque Galería falle)
+        await Filesystem.writeFile({
+          path: inDif(fileName),
+          data: base64,              // base64 puro
+          directory: Directory.Data, // sandbox de la app
+          recursive: true,
+        });
+
+        // 2) Intenta guardar en Galería si el plugin está disponible
+        const canUseMedia = typeof (Media as any)?.savePhoto === "function";
+        if (!canUseMedia) {
+          console.warn("Media plugin no disponible en runtime. Se guardó en sandbox /dif.");
+          return;
+        }
+
+        // 3) Permisos Android 13+ y iOS de forma explícita
+        const perm = await (Media as any).checkPermissions?.();
+        if (!perm || perm.photos !== "granted") {
+          const req = await (Media as any).requestPermissions?.({ permissions: ["photos"] });
+          if (!req || req.photos !== "granted") {
+            console.warn("Permiso de fotos no concedido. Se guardó en sandbox /dif.");
+            return;
+          }
+        }
+
+        // 4) Guarda en galería con álbum “dif”
+        const result = await (Media as any).savePhoto({
+          // Usa dataURL completo por compatibilidad
           path: `data:image/${ext === "jpg" ? "jpeg" : ext};base64,${base64}`,
           fileName,
+          album: "dif", // álbum de la galería
         });
+
+        if (!result || !result.path) {
+          console.warn("Media.savePhoto no regresó path. Ya está en sandbox /dif.");
+        }
       } catch (e) {
-        console.warn("No se pudo guardar la firma en la galería:", e);
+        console.warn("Error al guardar la firma. Ya está en sandbox /dif. Detalle:", e);
+        // Ya escribimos en sandbox; no hacemos nada más aquí
       }
     })();
   };
@@ -143,7 +212,9 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
 
-  // ---------- captura + persistencia ----------
+  // ============================================================
+  // FOTOS: captura + persistencia en sandbox /dif y álbum "dif"
+  // ============================================================
   const takePhotoAndPersist = async (): Promise<{
     previewUrl: string;
     dataFilename: string;
@@ -156,7 +227,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       allowEditing: false,
       resultType: isAndroid ? CameraResultType.Base64 : CameraResultType.Uri,
       source: CameraSource.Camera,
-      saveToGallery: true, // intentamos que el OEM la publique
+      saveToGallery: true, // el OEM puede publicarla; igual forzaremos con Media
       correctOrientation: true,
     });
 
@@ -205,31 +276,44 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       }
     }
 
-    const dataFilename = `image_${Date.now()}.jpg`;
+    const claveRawForPhoto = (datosInst && (datosInst as any).clave) ?? "";
+    const safeClaveForPhoto = String(claveRawForPhoto).replace(/[^a-zA-Z0-9_-]/g, "");
+    const ts = Date.now();
+    const dataFilename = `Evidencia-${safeClaveForPhoto}-${ts}.jpg`;
+
+    await ensureDifDir();
+
+    // Siempre persistimos en sandbox /dif
     await Filesystem.writeFile({
-      path: dataFilename,
+      path: inDif(dataFilename),
       data: base64Data,
       directory: Directory.Data,
       recursive: true,
     });
 
-    // ✅ Fallback garantizado a Galería (MediaStore)
+    // ✅ Fallback garantizado a Galería (MediaStore) → álbum "dif"
     try {
-      const claveRaw = (datosInst && (datosInst as any).clave) ?? "";
-      const safeClave = String(claveRaw).replace(/[^a-zA-Z0-9_-]/g, "");
-      const ts = Date.now();
-      const fileName = `Evidencia-${safeClave}-${ts}.jpg`;
-      await Media.savePhoto({
-        path: `data:image/jpeg;base64,${base64Data}`,
-        fileName,
-      });
+      const canUseMedia = typeof (Media as any)?.savePhoto === "function";
+      if (canUseMedia) {
+        const perm = await (Media as any).checkPermissions?.();
+        if (!perm || perm.photos !== "granted") {
+          await (Media as any).requestPermissions?.({ permissions: ["photos"] });
+        }
+        await (Media as any).savePhoto({
+          path: `data:image/jpeg;base64,${base64Data}`,
+          fileName: `Evidencia-${safeClaveForPhoto}-${ts}.jpg`,
+          album: "dif",
+        });
+      } else {
+        console.warn("Media plugin no disponible. Foto guardada en sandbox /dif.");
+      }
     } catch (e) {
-      console.warn("No se pudo publicar en MediaStore (se mantiene en sandbox):", e);
+      console.warn("No se pudo publicar en MediaStore (se mantiene en sandbox /dif):", e);
     }
 
     return {
       previewUrl,
-      dataFilename,
+      dataFilename: inDif(dataFilename), // guardamos la ruta con prefijo dif/
       galleryPath: photo.path || photo.webPath,
     };
   };
@@ -418,7 +502,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     try {
       const { previewUrl, dataFilename } = await takePhotoAndPersist();
       setImagenPreview((prev) => [...prev, previewUrl]);     // para UI
-      setImagenesStorage((prev) => [...prev, dataFilename]); // nombre en sandbox
+      setImagenesStorage((prev) => [...prev, dataFilename]); // nombre en sandbox (/dif/…)
       setNumImagenes((n) => n + 1);
     } catch (err) {
       console.error("Error al tomar/guardar la foto:", err);
