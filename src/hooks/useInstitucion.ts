@@ -87,6 +87,60 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
 
+  const takePhotoAndPersist = async () => {
+  // 1) Toma foto y guárdala físicamente en la Galería (MediaStore)
+  const photo = await Camera.getPhoto({
+    quality: 90,
+    allowEditing: false,
+    resultType: CameraResultType.Uri,
+    source: CameraSource.Camera,
+    saveToGallery: true,          // <- clave: foto “física” en el dispositivo
+    correctOrientation: true,
+  });
+
+  // 2) URL para previsualizar en la UI
+  const previewUrl = Capacitor.convertFileSrc(photo.path || photo.webPath!);
+
+  // 3) Copia a sandbox (Directory.Data) para tu flujo de subida (sin permisos)
+  let base64Data: string | undefined;
+
+  // a) Intento directo (algunos Android permiten leer content:// con Filesystem)
+  try {
+    const read = await Filesystem.readFile({ path: photo.path! });
+    base64Data = read.data; // base64
+  } catch {
+    // b) Fallback robusto: fetch + FileReader
+    const resp = await fetch(photo.webPath!);
+    const blob = await resp.blob();
+    const reader = new FileReader();
+    base64Data = await new Promise<string>((resolve, reject) => {
+      reader.onloadend = () => {
+        const s = (reader.result as string) || "";
+        const i = s.indexOf(",");
+        resolve(i >= 0 ? s.slice(i + 1) : s);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  const dataFilename = `image_${Date.now()}.jpg`;
+  await Filesystem.writeFile({
+    path: dataFilename,
+    data: base64Data!,
+    directory: Directory.Data,   // sandbox privado de la app
+    recursive: true,
+  });
+
+  // Devuelve lo que necesitas para tu estado
+  return {
+    previewUrl,          // para <img src=...>
+    dataFilename,        // para subir después (Directory.Data)
+    galleryPath: photo.path || photo.webPath, // opcional
+  };
+};
+
+
   // Guardar productos (y firma) en Preferences
   const guardarProductos = async () => {
     if (numImagenes < 2) {
@@ -266,117 +320,35 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   };
 
   // Mostrar la cámara para tomar fotos
-  const mostrar_camara = async () => {
-    if (numImagenes >= 2) {
-      presentAlert({
-        header: "Máximo de imágenes",
-        message: "Solo puedes tomar hasta dos fotos. Elimina alguna para capturar otra.",
-        cssClass: "alert-android",
-        buttons: ["Ok"],
-      });
-      return;
-    }
+const mostrar_camara = async () => {
+  if (numImagenes >= 2) {
+    presentAlert({
+      header: "Máximo de imágenes",
+      message: "Solo puedes tomar hasta dos fotos. Elimina alguna para capturar otra.",
+      cssClass: "alert-android",
+      buttons: ["Ok"],
+    });
+    return;
+  }
 
-    try {
-      const image = await Camera.getPhoto({
-        quality: 90,
-        allowEditing: false,
-        resultType: CameraResultType.Uri,
-        source: CameraSource.Camera,
-      });
+  try {
+    const { previewUrl, dataFilename } = await takePhotoAndPersist();
 
-      if (image.webPath) {
-        setNumImagenes((prevNum) => prevNum + 1);
-        const tempFilename = `image_${Date.now()}.jpg`;
-        try {
-          const response = await fetch(image.webPath);
-          const blob = await response.blob();
-          const file = new File([blob], tempFilename, { type: "image/jpeg" });
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            try {
-              const dataUrl = typeof reader.result === "string" ? reader.result : "";
-              if (!dataUrl) throw new Error("No se pudo leer el contenido de la imagen");
-              const commaIndex = dataUrl.indexOf(",");
-              const base64Image = commaIndex !== -1 ? dataUrl.substring(commaIndex + 1) : dataUrl;
+    // Actualiza estados como ya los usas en tu flujo
+    setImagenPreview(prev => [...prev, previewUrl]);     // para mostrar al usuario
+    setImagenesStorage(prev => [...prev, dataFilename]); // NOMBRE del archivo (Directory.Data)
+    setNumImagenes(n => n + 1);
+  } catch (err) {
+    console.error("Error al tomar/guardar la foto:", err);
+    presentAlert({
+      header: "Error",
+      message: "No se pudo guardar la foto.",
+      cssClass: "alert-android",
+      buttons: ["Ok"],
+    });
+  }
+};
 
-              // Intenta guardar en almacenamiento externo en carpeta por fecha
-              const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-              const now = new Date();
-              const dateFolder = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
-              const baseFolder = `Pictures/Distribuciones/${dateFolder}`; // Carpeta destino
-
-              // Asegura permisos para almacenamiento público (Android)
-              try {
-                const perms: any = await Filesystem.checkPermissions();
-                if (perms.publicStorage !== "granted") {
-                  const req: any = await Filesystem.requestPermissions();
-                  if (req.publicStorage !== "granted") {
-                    throw new Error("Permiso de almacenamiento público denegado");
-                  }
-                }
-
-                // Crea carpeta y guarda el archivo
-                await Filesystem.mkdir({
-                  path: baseFolder,
-                  directory: Directory.ExternalStorage,
-                  recursive: true,
-                }).catch(() => {});
-
-                const externalPath = `${baseFolder}/${tempFilename}`;
-                const savedExternal = await Filesystem.writeFile({
-                  path: externalPath,
-                  data: base64Image,
-                  directory: Directory.ExternalStorage,
-                  recursive: true,
-                });
-
-                const { uri } = await Filesystem.getUri({
-                  directory: Directory.ExternalStorage,
-                  path: externalPath,
-                });
-
-                const filePath = uri || savedExternal.uri || `${Directory.ExternalStorage}/${externalPath}`;
-                const previewPath = Capacitor.convertFileSrc(filePath);
-                const resolvedPreviewPath = previewPath ?? image.webPath;
-                setImagenPreview((prev) => [...prev, resolvedPreviewPath]);
-
-                // Además, guarda una copia en el almacenamiento interno de la app
-                await Filesystem.writeFile({
-                  path: tempFilename,
-                  data: base64Image,
-                  directory: Directory.Data,
-                });
-                // Para el flujo de subida, almacenamos solo el nombre de archivo
-                setImagenesStorage((prev) => [...prev, tempFilename]);
-              } catch (externalErr) {
-                // Fallback: guarda en almacenamiento interno de la app
-                const saved = await Filesystem.writeFile({
-                  path: tempFilename,
-                  data: base64Image,
-                  directory: Directory.Data,
-                });
-
-                const filePath = saved.uri || `${Directory.Data}/${tempFilename}`;
-                const previewPath = Capacitor.convertFileSrc(filePath);
-                const resolvedPreviewPath = previewPath ?? image.webPath;
-                setImagenPreview((prev) => [...prev, resolvedPreviewPath]);
-                // Para el flujo de subida, almacenamos solo el nombre de archivo
-                setImagenesStorage((prev) => [...prev, tempFilename]);
-              }
-            } catch (saveError) {
-              console.error("Error al guardar la imagen:", saveError);
-            }
-          };
-          reader.readAsDataURL(file);
-        } catch (err) {
-          console.error("Error al guardar la imagen:", err);
-        }
-      }
-    } catch (err) {
-      console.error("Error al tomar foto:", err);
-    }
-  };
 
   // Actualizar observaciones
   const handleObservacionesChange = (event: CustomEvent) => {
