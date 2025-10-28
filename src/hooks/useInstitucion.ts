@@ -188,7 +188,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     try {
       await Media.savePhoto({
         path: `data:image/jpeg;base64,${base64Data}`,
-        album: "Distribuciones",
+        fileName: `Distribuciones_${Date.now()}.jpg`,
       });
     } catch (e) {
       console.warn("No se pudo publicar en MediaStore (se mantiene en sandbox):", e);
