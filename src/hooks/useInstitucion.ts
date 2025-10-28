@@ -123,7 +123,21 @@ const takePhotoAndPersist = async (): Promise<{
     // lee el archivo y conviértelo a base64
     try {
       const read = await Filesystem.readFile({ path: srcPath });
-      base64Data = read.data;
+      if (typeof read.data === "string") {
+        base64Data = read.data;
+      } else {
+        const blobFromFs = read.data as Blob;
+        base64Data = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onloadend = () => {
+            const s = (r.result as string) || "";
+            const i = s.indexOf(",");
+            resolve(i >= 0 ? s.slice(i + 1) : s);
+          };
+          r.onerror = reject;
+          r.readAsDataURL(blobFromFs);
+        });
+      }
     } catch {
       const resp = await fetch(srcPath);
       const blob = await resp.blob();
@@ -153,6 +167,8 @@ const takePhotoAndPersist = async (): Promise<{
     dataFilename,
     galleryPath: photo.path || photo.webPath, // opcional
   };
+
+};
 
 
   // Guardar productos (y firma) en Preferences
