@@ -107,7 +107,20 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   // a) Intento directo (algunos Android permiten leer content:// con Filesystem)
   try {
     const read = await Filesystem.readFile({ path: photo.path! });
-    base64Data = read.data; // base64
+    if (typeof read.data === "string") {
+      base64Data = read.data; // base64 string
+    } else {
+      // read.data puede ser Blob en algunos entornos: convertir a base64
+      const blobFromFs = read.data as Blob;
+      const reader = new FileReader();
+      const dataUrl: string = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => resolve((reader.result as string) || "");
+        reader.onerror = reject;
+        reader.readAsDataURL(blobFromFs);
+      });
+      const commaIdx = dataUrl.indexOf(",");
+      base64Data = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl;
+    }
   } catch {
     // b) Fallback robusto: fetch + FileReader
     const resp = await fetch(photo.webPath!);
