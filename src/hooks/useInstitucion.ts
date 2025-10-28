@@ -87,46 +87,36 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
 
-  const takePhotoAndPersist = async () => {
-  // 1) Toma foto y guárdala físicamente en la Galería (MediaStore)
+const takePhotoAndPersist = async (): Promise<{
+  previewUrl: string;
+  dataFilename: string;
+  galleryPath?: string;
+}> => {
   const photo = await Camera.getPhoto({
     quality: 90,
     allowEditing: false,
     resultType: CameraResultType.Uri,
     source: CameraSource.Camera,
-    saveToGallery: true,          // <- clave: foto “física” en el dispositivo
+    saveToGallery: true,
     correctOrientation: true,
   });
 
-  // 2) URL para previsualizar en la UI
-  const previewUrl = Capacitor.convertFileSrc(photo.path || photo.webPath!);
+  // Asegura una ruta válida
+  const srcPath = photo.path ?? photo.webPath;
+  if (!srcPath) throw new Error("No path returned by Camera");
 
-  // 3) Copia a sandbox (Directory.Data) para tu flujo de subida (sin permisos)
-  let base64Data: string | undefined;
+  const previewUrl: string = Capacitor.convertFileSrc(srcPath);
 
-  // a) Intento directo (algunos Android permiten leer content:// con Filesystem)
+  // ✅ Siempre string (no undefined)
+  let base64Data: string;
   try {
-    const read = await Filesystem.readFile({ path: photo.path! });
-    if (typeof read.data === "string") {
-      base64Data = read.data; // base64 string
-    } else {
-      // read.data puede ser Blob en algunos entornos: convertir a base64
-      const blobFromFs = read.data as Blob;
-      const reader = new FileReader();
-      const dataUrl: string = await new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => resolve((reader.result as string) || "");
-        reader.onerror = reject;
-        reader.readAsDataURL(blobFromFs);
-      });
-      const commaIdx = dataUrl.indexOf(",");
-      base64Data = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl;
-    }
+    const read = await Filesystem.readFile({ path: srcPath });
+    base64Data = read.data; // base64 string
   } catch {
-    // b) Fallback robusto: fetch + FileReader
-    const resp = await fetch(photo.webPath!);
+    const resp = await fetch(srcPath);
     const blob = await resp.blob();
-    const reader = new FileReader();
     base64Data = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
       reader.onloadend = () => {
         const s = (reader.result as string) || "";
         const i = s.indexOf(",");
@@ -140,18 +130,14 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const dataFilename = `image_${Date.now()}.jpg`;
   await Filesystem.writeFile({
     path: dataFilename,
-    data: base64Data!,
-    directory: Directory.Data,   // sandbox privado de la app
+    data: base64Data,          // 👈 string, no Blob
+    directory: Directory.Data,
     recursive: true,
   });
 
-  // Devuelve lo que necesitas para tu estado
-  return {
-    previewUrl,          // para <img src=...>
-    dataFilename,        // para subir después (Directory.Data)
-    galleryPath: photo.path || photo.webPath, // opcional
-  };
+  return { previewUrl, dataFilename, galleryPath: srcPath };
 };
+
 
 
   // Guardar productos (y firma) en Preferences
