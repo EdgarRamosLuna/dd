@@ -87,71 +87,72 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
 
-  const takePhotoAndPersist = async () => {
-  // 1) Toma foto y guárdala físicamente en la Galería (MediaStore)
+const takePhotoAndPersist = async (): Promise<{
+  previewUrl: string;
+  dataFilename: string;
+  galleryPath?: string;
+}> => {
+  const isAndroid = Capacitor.getPlatform() === "android";
+
   const photo = await Camera.getPhoto({
     quality: 90,
     allowEditing: false,
-    resultType: CameraResultType.Uri,
+    // 👇 En Android usa Base64; en iOS/Web puedes seguir con URI
+    resultType: isAndroid ? CameraResultType.Base64 : CameraResultType.Uri,
     source: CameraSource.Camera,
-    saveToGallery: true,          // <- clave: foto “física” en el dispositivo
+    saveToGallery: true,          // guarda físicamente en la galería (MediaStore)
     correctOrientation: true,
   });
 
-  // 2) URL para previsualizar en la UI
-  const previewUrl = Capacitor.convertFileSrc(photo.path || photo.webPath!);
+  let previewUrl: string;
+  let base64Data: string;
 
-  // 3) Copia a sandbox (Directory.Data) para tu flujo de subida (sin permisos)
-  let base64Data: string | undefined;
+  if (isAndroid && photo.base64String) {
+    // ✅ ya tienes el base64 directo del plugin (sin 'data:')
+    base64Data = photo.base64String;
+    // Para la UI arma un data URL
+    const fmt = photo.format || "jpeg";
+    previewUrl = `data:image/${fmt};base64,${base64Data}`;
+  } else {
+    // iOS / WebView normal con URI
+    const srcPath = photo.path ?? photo.webPath;
+    if (!srcPath) throw new Error("No path returned by Camera");
 
-  // a) Intento directo (algunos Android permiten leer content:// con Filesystem)
-  try {
-    const read = await Filesystem.readFile({ path: photo.path! });
-    if (typeof read.data === "string") {
-      base64Data = read.data; // base64 string
-    } else {
-      // read.data puede ser Blob en algunos entornos: convertir a base64
-      const blobFromFs = read.data as Blob;
-      const reader = new FileReader();
-      const dataUrl: string = await new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => resolve((reader.result as string) || "");
-        reader.onerror = reject;
-        reader.readAsDataURL(blobFromFs);
+    previewUrl = Capacitor.convertFileSrc(srcPath);
+
+    // lee el archivo y conviértelo a base64
+    try {
+      const read = await Filesystem.readFile({ path: srcPath });
+      base64Data = read.data;
+    } catch {
+      const resp = await fetch(srcPath);
+      const blob = await resp.blob();
+      base64Data = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onloadend = () => {
+          const s = (r.result as string) || "";
+          const i = s.indexOf(",");
+          resolve(i >= 0 ? s.slice(i + 1) : s);
+        };
+        r.onerror = reject;
+        r.readAsDataURL(blob);
       });
-      const commaIdx = dataUrl.indexOf(",");
-      base64Data = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl;
     }
-  } catch {
-    // b) Fallback robusto: fetch + FileReader
-    const resp = await fetch(photo.webPath!);
-    const blob = await resp.blob();
-    const reader = new FileReader();
-    base64Data = await new Promise<string>((resolve, reject) => {
-      reader.onloadend = () => {
-        const s = (reader.result as string) || "";
-        const i = s.indexOf(",");
-        resolve(i >= 0 ? s.slice(i + 1) : s);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
   }
 
   const dataFilename = `image_${Date.now()}.jpg`;
   await Filesystem.writeFile({
     path: dataFilename,
-    data: base64Data!,
-    directory: Directory.Data,   // sandbox privado de la app
+    data: base64Data,           // 👈 siempre string base64
+    directory: Directory.Data,  // sandbox
     recursive: true,
   });
 
-  // Devuelve lo que necesitas para tu estado
   return {
-    previewUrl,          // para <img src=...>
-    dataFilename,        // para subir después (Directory.Data)
+    previewUrl,
+    dataFilename,
     galleryPath: photo.path || photo.webPath, // opcional
   };
-};
 
 
   // Guardar productos (y firma) en Preferences
