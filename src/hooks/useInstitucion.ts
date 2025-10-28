@@ -98,13 +98,22 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         const claveRaw = (datosInst && (datosInst as any).clave) ?? "";
         const safeClave = String(claveRaw).replace(/[^a-zA-Z0-9_-]/g, "");
         const ts = Date.now();
-        const m = dataUrl.match(/^data:image\/(.+?);base64,/);
+        const m = dataUrl.match(/^data:image\/(.+?);base64,(.+)$/);
         const ext0 = (m && m[1]) ? m[1] : "png";
+        const base64 = (m && m[2]) ? m[2] : dataUrl.replace(/^data:.*;base64,/, "");
         const ext = ext0 === "jpeg" ? "jpg" : ext0;
         const fileName = `Firma-${safeClave}-${ts}.${ext}`;
 
+        // Solicita permiso en Android 13+ (algunos OEM lo requieren para escribir)
+        try {
+          const anyMedia: any = await (Media as any).checkPermissions?.();
+          if (!anyMedia || anyMedia.photos !== "granted") {
+            await (Media as any).requestPermissions?.();
+          }
+        } catch {}
+
         await Media.savePhoto({
-          path: dataUrl, // data URL completa
+          path: `data:image/${ext === "jpg" ? "jpeg" : ext};base64,${base64}`,
           fileName,
         });
       } catch (e) {
