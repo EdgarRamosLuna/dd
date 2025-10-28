@@ -6,6 +6,8 @@ import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Capacitor } from "@capacitor/core";
 import { Preferences } from "@capacitor/preferences";
 import { useHistory } from "react-router-dom";
+// ✅ fallback a MediaStore para Galería
+import { Media } from "@capacitor-community/media";
 
 export const useInstitucion = (institucionData: any, instId: string) => {
   // Estados principales
@@ -21,7 +23,23 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [presentAlert] = useIonAlert();
   const history = useHistory();
 
-  // Inicializar datos de productos
+  // ---------- helpers robustos ----------
+  const statInSandbox = async (name: string) => {
+    try {
+      await Filesystem.stat({ path: name, directory: Directory.Data });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Lee base64 de sandbox (para subida)
+  const readFromSandbox = async (name: string) => {
+    const { data } = await Filesystem.readFile({ path: name, directory: Directory.Data });
+    return data as string; // base64
+  };
+
+  // ---------- init productos ----------
   useEffect(() => {
     if (institucionData) {
       const productosAgregar: any[] = [];
@@ -37,24 +55,33 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     }
   }, [institucionData]);
 
-  // Cargar imágenes y firma guardadas
+  // ---------- cargar imágenes guardadas ----------
   const cargarImagenesGuardadas = async () => {
     try {
       const { value } = await Preferences.get({ key: "imagenes_subir" });
-      if (value && value !== "") {
-        const imagenesSubir = JSON.parse(value);
-        const imagenesInst = imagenesSubir.find((x: any) => x.inst_id === instId);
-        if (imagenesInst) {
-          const imagenesParaMostrar = (imagenesInst.imagenes_mostrar || []).slice(0, 2);
-          setImagenesGuardadas(imagenesParaMostrar);
-          setNumImagenes(imagenesParaMostrar.length);
-          setImagenPreview([]);
-          setImagenesStorage([]);
-        } else {
-          setImagenesGuardadas([]);
-          setFirmaPreview(null);
+      if (!value) return;
+
+      const imagenesSubir = JSON.parse(value);
+      const imagenesInst = imagenesSubir.find((x: any) => x.inst_id === instId);
+      if (!imagenesInst) {
+        setImagenesGuardadas([]);
+        setFirmaPreview(null);
+        return;
+      }
+
+      // ⚠️ Filtra previews cuya contraparte en sandbox ya no exista
+      const imgsMostrar: string[] = [];
+
+      for (let i = 0; i < (imagenesInst.imagenes || []).length && imgsMostrar.length < 2; i++) {
+        const name = imagenesInst.imagenes[i]; // nombre (sandbox)
+        const prev = imagenesInst.imagenes_mostrar?.[i]; // preview (dataURL o fileSrc)
+        if (await statInSandbox(name)) {
+          imgsMostrar.push(prev);
         }
       }
+
+      setImagenesGuardadas(imgsMostrar);
+      setNumImagenes(imgsMostrar.length);
     } catch (err) {
       console.error("Error al cargar imágenes y firma guardadas:", err);
     }
@@ -87,46 +114,55 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
 
-const takePhotoAndPersist = async (): Promise<{
-  previewUrl: string;
-  dataFilename: string;
-  galleryPath?: string;
-}> => {
-  const isAndroid = Capacitor.getPlatform() === "android";
+  // ---------- captura + persistencia ----------
+  const takePhotoAndPersist = async (): Promise<{
+    previewUrl: string;
+    dataFilename: string;
+    galleryPath?: string;
+  }> => {
+    const isAndroid = Capacitor.getPlatform() === "android";
 
-  const photo = await Camera.getPhoto({
-    quality: 90,
-    allowEditing: false,
-    // 👇 En Android usa Base64; en iOS/Web puedes seguir con URI
-    resultType: isAndroid ? CameraResultType.Base64 : CameraResultType.Uri,
-    source: CameraSource.Camera,
-    saveToGallery: true,          // guarda físicamente en la galería (MediaStore)
-    correctOrientation: true,
-  });
+    const photo = await Camera.getPhoto({
+      quality: 90,
+      allowEditing: false,
+      resultType: isAndroid ? CameraResultType.Base64 : CameraResultType.Uri,
+      source: CameraSource.Camera,
+      saveToGallery: true, // intentamos que el OEM la publique
+      correctOrientation: true,
+    });
 
-  let previewUrl: string;
-  let base64Data: string;
+    let previewUrl: string;
+    let base64Data: string;
 
-  if (isAndroid && photo.base64String) {
-    // ✅ ya tienes el base64 directo del plugin (sin 'data:')
-    base64Data = photo.base64String;
-    // Para la UI arma un data URL
-    const fmt = photo.format || "jpeg";
-    previewUrl = `data:image/${fmt};base64,${base64Data}`;
-  } else {
-    // iOS / WebView normal con URI
-    const srcPath = photo.path ?? photo.webPath;
-    if (!srcPath) throw new Error("No path returned by Camera");
-
-    previewUrl = Capacitor.convertFileSrc(srcPath);
-
-    // lee el archivo y conviértelo a base64
-    try {
-      const read = await Filesystem.readFile({ path: srcPath });
-      if (typeof read.data === "string") {
-        base64Data = read.data;
-      } else {
-        const blobFromFs = read.data as Blob;
+    if (isAndroid && photo.base64String) {
+      base64Data = photo.base64String; // sin encabezado
+      const fmt = photo.format || "jpeg";
+      previewUrl = `data:image/${fmt};base64,${base64Data}`;
+    } else {
+      const srcPath = photo.path ?? photo.webPath;
+      if (!srcPath) throw new Error("No path returned by Camera");
+      previewUrl = Capacitor.convertFileSrc(srcPath);
+      // Lee y pasa a base64 (iOS/webview)
+      try {
+        const read = await Filesystem.readFile({ path: srcPath });
+        if (typeof read.data === "string") {
+          base64Data = read.data;
+        } else {
+          const blobFromFs = read.data as Blob;
+          base64Data = await new Promise<string>((resolve, reject) => {
+            const r = new FileReader();
+            r.onloadend = () => {
+              const s = (r.result as string) || "";
+              const i = s.indexOf(",");
+              resolve(i >= 0 ? s.slice(i + 1) : s);
+            };
+            r.onerror = reject;
+            r.readAsDataURL(blobFromFs);
+          });
+        }
+      } catch {
+        const resp = await fetch(srcPath);
+        const blob = await resp.blob();
         base64Data = await new Promise<string>((resolve, reject) => {
           const r = new FileReader();
           r.onloadend = () => {
@@ -135,43 +171,37 @@ const takePhotoAndPersist = async (): Promise<{
             resolve(i >= 0 ? s.slice(i + 1) : s);
           };
           r.onerror = reject;
-          r.readAsDataURL(blobFromFs);
+          r.readAsDataURL(blob);
         });
       }
-    } catch {
-      const resp = await fetch(srcPath);
-      const blob = await resp.blob();
-      base64Data = await new Promise<string>((resolve, reject) => {
-        const r = new FileReader();
-        r.onloadend = () => {
-          const s = (r.result as string) || "";
-          const i = s.indexOf(",");
-          resolve(i >= 0 ? s.slice(i + 1) : s);
-        };
-        r.onerror = reject;
-        r.readAsDataURL(blob);
-      });
     }
-  }
 
-  const dataFilename = `image_${Date.now()}.jpg`;
-  await Filesystem.writeFile({
-    path: dataFilename,
-    data: base64Data,           // 👈 siempre string base64
-    directory: Directory.Data,  // sandbox
-    recursive: true,
-  });
+    const dataFilename = `image_${Date.now()}.jpg`;
+    await Filesystem.writeFile({
+      path: dataFilename,
+      data: base64Data,
+      directory: Directory.Data,
+      recursive: true,
+    });
 
-  return {
-    previewUrl,
-    dataFilename,
-    galleryPath: photo.path || photo.webPath, // opcional
+    // ✅ Fallback garantizado a Galería (MediaStore)
+    try {
+      await Media.savePhoto({
+        path: `data:image/jpeg;base64,${base64Data}`,
+        album: "Distribuciones",
+      });
+    } catch (e) {
+      console.warn("No se pudo publicar en MediaStore (se mantiene en sandbox):", e);
+    }
+
+    return {
+      previewUrl,
+      dataFilename,
+      galleryPath: photo.path || photo.webPath,
+    };
   };
 
-};
-
-
-  // Guardar productos (y firma) en Preferences
+  // ---------- guardar productos ----------
   const guardarProductos = async () => {
     if (numImagenes < 2) {
       presentAlert({
@@ -192,8 +222,7 @@ const takePhotoAndPersist = async (): Promise<{
     if (!firmaPreview && !datosInst?.firma) {
       presentAlert({
         header: "Falta firma",
-        message:
-          "Debes capturar y guardar la firma de quien recibe antes de continuar.",
+        message: "Debes capturar y guardar la firma de quien recibe antes de continuar.",
         cssClass: "alert-android",
         buttons: ["Ok"],
       });
@@ -203,8 +232,7 @@ const takePhotoAndPersist = async (): Promise<{
     if (!datosInst.quien_recibe || datosInst.quien_recibe === "") {
       presentAlert({
         header: "Falta información",
-        message:
-          "No has ingresado la persona que está recibiendo los productos. Este campo es necesario para continuar.",
+        message: "No has ingresado la persona que está recibiendo los productos.",
         cssClass: "alert-android",
         buttons: ["Ok"],
       });
@@ -215,8 +243,7 @@ const takePhotoAndPersist = async (): Promise<{
       if (isNaN(datosInst.productos[i].entregado)) {
         presentAlert({
           header: "Información incorrecta",
-          message:
-            "Alguna o algunas de las cantidades que ingresaste tienen un mal formato. Verifica que solo contengan números y decimales.",
+          message: "Alguna cantidad tiene un mal formato.",
           cssClass: "alert-android",
           buttons: ["Ok"],
         });
@@ -225,8 +252,7 @@ const takePhotoAndPersist = async (): Promise<{
       if (+datosInst.productos[i].entregado > +datosInst.productos[i].cantidad) {
         presentAlert({
           header: "Información incorrecta",
-          message:
-            "Alguna de tus cantidades entregadas es mayor a la cantidad a entregar. Favor de verificar la información.",
+          message: "Alguna cantidad entregada es mayor a la cantidad a entregar.",
           cssClass: "alert-android",
           buttons: ["Ok"],
         });
@@ -238,31 +264,25 @@ const takePhotoAndPersist = async (): Promise<{
       ...datosInst,
       save_chofer: "1",
       fecha_guardado: dateTime,
-      ...(firmaPreview
-        ? { firma: firmaPreview }
-        : datosInst?.firma
-        ? { firma: datosInst.firma }
-        : {}),
+      ...(firmaPreview ? { firma: firmaPreview } : datosInst?.firma ? { firma: datosInst.firma } : {}),
     };
     setDatosInst(newDatosInst);
     await guardar_storage_productos(newDatosInst);
   };
 
-  // Guardar en Preferences
+  // ---------- guardar en Preferences ----------
   const guardar_storage_productos = async (datosActualizados: any) => {
     try {
       const { value: distDatosValue } = await Preferences.get({ key: "distDatos" });
       const distDatos = distDatosValue ? JSON.parse(distDatosValue) : [];
 
       const index = distDatos.findIndex((item: any) => item.dist_inst_id === instId);
-      if (index !== -1) {
-        distDatos[index] = datosActualizados;
-      }
+      if (index !== -1) distDatos[index] = datosActualizados;
 
       await Preferences.set({ key: "info_por_guardar", value: "1" });
       await Preferences.set({ key: "distDatos", value: JSON.stringify(distDatos) });
 
-      // Merge con imágenes previamente guardadas para esta institución y limitar a 2
+      // Merge con imágenes previas y NUEVAS, respetando máximo 2
       const { value } = await Preferences.get({ key: "imagenes_subir" });
       let arregloImagenes: any[] = value && value !== "" ? JSON.parse(value) : [];
       const existingIndex = arregloImagenes.findIndex((item: any) => item.inst_id === instId);
@@ -270,9 +290,18 @@ const takePhotoAndPersist = async (): Promise<{
       const prevImagenes = existingIndex !== -1 ? (arregloImagenes[existingIndex].imagenes || []) : [];
       const prevImagenesMostrar = existingIndex !== -1 ? (arregloImagenes[existingIndex].imagenes_mostrar || []) : [];
 
-      // Combinar previas + nuevas, respetando máximo 2
-      const combinadasImagenes = [...prevImagenes, ...imagenesStorage].slice(0, 2);
-      const combinadasImagenesMostrar = [...prevImagenesMostrar, ...imagenPreview].slice(0, 2);
+      // 🔒 filtra nombres inexistentes en sandbox (evita “File does not exist” después)
+      const prevFiltradas: string[] = [];
+      const prevMostrarFiltradas: string[] = [];
+      for (let i = 0; i < prevImagenes.length; i++) {
+        if (await statInSandbox(prevImagenes[i])) {
+          prevFiltradas.push(prevImagenes[i]);
+          prevMostrarFiltradas.push(prevImagenesMostrar[i]);
+        }
+      }
+
+      const combinadasImagenes = [...prevFiltradas, ...imagenesStorage].slice(0, 2);
+      const combinadasImagenesMostrar = [...prevMostrarFiltradas, ...imagenPreview].slice(0, 2);
 
       const objetoImagenes: any = {
         imagenes: combinadasImagenes,
@@ -291,17 +320,9 @@ const takePhotoAndPersist = async (): Promise<{
 
       presentAlert({
         header: "Datos almacenados en el dispositivo",
-        message:
-          "Recuerda subir los datos a la nube lo antes posible cuando estés en un lugar con internet.",
+        message: "Recuerda subir los datos a la nube cuando tengas internet.",
         cssClass: "alert-android",
-        buttons: [
-          {
-            text: "OK",
-            handler: () => {
-              history.goBack();
-            },
-          },
-        ],
+        buttons: [{ text: "OK", handler: () => history.goBack() }],
       });
     } catch (err) {
       console.error("Error al guardar productos:", err);
@@ -349,44 +370,39 @@ const takePhotoAndPersist = async (): Promise<{
     setNumImagenes((prev) => (prev > 0 ? prev - 1 : 0));
   };
 
-  // Mostrar la cámara para tomar fotos
-const mostrar_camara = async () => {
-  if (numImagenes >= 2) {
-    presentAlert({
-      header: "Máximo de imágenes",
-      message: "Solo puedes tomar hasta dos fotos. Elimina alguna para capturar otra.",
-      cssClass: "alert-android",
-      buttons: ["Ok"],
-    });
-    return;
-  }
+  // ---------- cámara ----------
+  const mostrar_camara = async () => {
+    if (numImagenes >= 2) {
+      presentAlert({
+        header: "Máximo de imágenes",
+        message: "Solo puedes tomar hasta dos fotos. Elimina alguna para capturar otra.",
+        cssClass: "alert-android",
+        buttons: ["Ok"],
+      });
+      return;
+    }
 
-  try {
-    const { previewUrl, dataFilename } = await takePhotoAndPersist();
+    try {
+      const { previewUrl, dataFilename } = await takePhotoAndPersist();
+      setImagenPreview((prev) => [...prev, previewUrl]);     // para UI
+      setImagenesStorage((prev) => [...prev, dataFilename]); // nombre en sandbox
+      setNumImagenes((n) => n + 1);
+    } catch (err) {
+      console.error("Error al tomar/guardar la foto:", err);
+      presentAlert({
+        header: "Error",
+        message: "No se pudo guardar la foto.",
+        cssClass: "alert-android",
+        buttons: ["Ok"],
+      });
+    }
+  };
 
-    // Actualiza estados como ya los usas en tu flujo
-    setImagenPreview(prev => [...prev, previewUrl]);     // para mostrar al usuario
-    setImagenesStorage(prev => [...prev, dataFilename]); // NOMBRE del archivo (Directory.Data)
-    setNumImagenes(n => n + 1);
-  } catch (err) {
-    console.error("Error al tomar/guardar la foto:", err);
-    presentAlert({
-      header: "Error",
-      message: "No se pudo guardar la foto.",
-      cssClass: "alert-android",
-      buttons: ["Ok"],
-    });
-  }
-};
-
-
-  // Actualizar observaciones
+  // ---------- inputs ----------
   const handleObservacionesChange = (event: CustomEvent) => {
     const newDatosInst = { ...datosInst, observaciones: (event as any).detail?.value };
     setDatosInst(newDatosInst);
   };
-
-  // Actualizar quien recibe
   const handleQuienRecibeChange = (event: CustomEvent) => {
     const newDatosInst = { ...datosInst, quien_recibe: (event as any).detail?.value };
     setDatosInst(newDatosInst);
@@ -412,5 +428,8 @@ const mostrar_camara = async () => {
     showAlert,
     setShowAlert,
     alertMessage,
+    // helpers opcionales
+    readFromSandbox,
+    statInSandbox,
   };
 };
