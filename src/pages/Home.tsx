@@ -27,6 +27,7 @@ import { useUsuario } from "../contexts/UsuarioContext";
 
 import { Capacitor } from "@capacitor/core";
 import { useDistribucionHook } from "../hooks/useDistribucionHook";
+import { ensureInSandbox, readBase64Smart } from "../utils/files";
 
 const Home: React.FC = () => {
   // Estados equivalentes a las propiedades de la clase
@@ -317,15 +318,11 @@ const Home: React.FC = () => {
 
       for (const { inst_id, imagenes, firma  } of list) {
         for (const imagePath of imagenes) {
-          // 1) extraer nombre
-          const fileName = imagePath.substring(imagePath.lastIndexOf("/") + 1);
+          const uniqueName = `${inst_id}_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+          const relPath = await ensureInSandbox(imagePath, uniqueName);
+          const fileName = relPath.substring(relPath.lastIndexOf("/") + 1);
 
-          // 2) leer base64 del FS
-          const file = await Filesystem.readFile({
-            path: fileName,
-            directory: Directory.Data,
-          });
-          const base64 = file.data as string; // TS ya sabe que es string
+          const base64 = await readBase64Smart(relPath);
 
           // 3) convertir Base64 → binary chunks → Blob
           const binary = atob(base64);
@@ -355,7 +352,7 @@ const Home: React.FC = () => {
 
           // 5) borrar el archivo local
           await Filesystem.deleteFile({
-            path: fileName,
+            path: relPath,
             directory: Directory.Data,
           });
         }

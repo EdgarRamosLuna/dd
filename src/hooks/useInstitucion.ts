@@ -1,15 +1,18 @@
-// src/hooks/useInstitucion.ts
+﻿// src/hooks/useInstitucion.ts
 'use client';
 
 import { useEffect, useState } from "react";
 import { useIonAlert } from "@ionic/react";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { Filesystem, Directory } from "@capacitor/filesystem";
-import { Capacitor } from "@capacitor/core";
 import { Preferences } from "@capacitor/preferences";
 import { useHistory } from "react-router-dom";
-// ✅ fallback a MediaStore para Galería
-import { Media } from "@capacitor-community/media";
+import {
+  ensureInSandbox,
+  readBase64Smart,
+  saveCopyToGalleryFromBase64,
+  DIF_DIR,
+} from "../utils/files";
 
 export const useInstitucion = (institucionData: any, instId: string) => {
   // Estados principales
@@ -26,12 +29,12 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const history = useHistory();
 
   // ============================================================
-  // Helpers: carpeta dif (sandbox) + normalización de rutas
+  // Helpers: carpeta dif (sandbox) + normalizaciÃ³n de rutas
   // ============================================================
   const ensureDifDir = async () => {
     try {
       await Filesystem.mkdir({
-        path: "dif",
+        path: DIF_DIR,
         directory: Directory.Data,
         recursive: true,
       });
@@ -44,7 +47,10 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     }
   };
 
-  const inDif = (name: string) => (name.startsWith("dif/") ? name : `dif/${name}`);
+  const inDif = (name: string) => {
+    const trimmed = (name || "").replace(/^file:\/\//, "").replace(/^\/+/, "");
+    return trimmed.startsWith(`${DIF_DIR}/`) ? trimmed : `${DIF_DIR}/${trimmed}`;
+  };
 
   // ---------- helpers robustos ----------
   const statInSandbox = async (name: string) => {
@@ -57,26 +63,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   };
 
   // Lee base64 de sandbox (para subida)
-  const readFromSandbox = async (name: string) => {
-    const { data } = await Filesystem.readFile({ path: inDif(name), directory: Directory.Data });
-    return data as string; // base64
-  };
-
-  // ============================================================
-  // Self-check opcional (logs de permisos y plugin)
-  // ============================================================
-  useEffect(() => {
-    (async () => {
-      try {
-        const canUseMedia = typeof (Media as any)?.savePhoto === "function";
-        console.log("[Media plugin] savePhoto disponible:", canUseMedia);
-        const perm = await (Media as any)?.checkPermissions?.();
-        console.log("[Media plugin] permisos actuales:", perm);
-      } catch (e) {
-        console.log("[Media plugin] no disponible o error al checar permisos:", e);
-      }
-    })();
-  }, []);
+  const readFromSandbox = async (name: string) => readBase64Smart(inDif(name));
 
   // ---------- init productos ----------
   useEffect(() => {
@@ -97,30 +84,89 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   // ---------- cargar imágenes guardadas ----------
   const cargarImagenesGuardadas = async () => {
     try {
+      await ensureDifDir();
       const { value } = await Preferences.get({ key: "imagenes_subir" });
-      if (!value) return;
+      if (!value) {
+        setImagenesGuardadas([]);
+        setNumImagenes(0);
+        return;
+      }
 
       const imagenesSubir = JSON.parse(value);
       const imagenesInst = imagenesSubir.find((x: any) => x.inst_id === instId);
       if (!imagenesInst) {
         setImagenesGuardadas([]);
         setFirmaPreview(null);
+        setNumImagenes(0);
         return;
       }
 
-      // ⚠️ Filtra previews cuya contraparte en sandbox ya no exista
-      const imgsMostrar: string[] = [];
+      const dirListing = await Filesystem.readdir({
+        path: DIF_DIR,
+        directory: Directory.Data,
+      }).catch(() => ({ files: [] as any[] }));
+      const nombresEnDir = new Set(
+        (dirListing.files || []).map((entry: any) =>
+          typeof entry === "string" ? entry : entry?.name
+        )
+      );
 
-      for (let i = 0; i < (imagenesInst.imagenes || []).length && imgsMostrar.length < 2; i++) {
-        const name = imagenesInst.imagenes[i]; // nombre (sandbox)
-        const prev = imagenesInst.imagenes_mostrar?.[i]; // preview (dataURL o fileSrc)
-        if (await statInSandbox(name)) {
-          imgsMostrar.push(prev);
+      const nuevasImagenes: string[] = [];
+      const previews: string[] = [];
+      let needsUpdate = false;
+
+      for (let i = 0; i < (imagenesInst.imagenes || []).length; i++) {
+        const rawPath = imagenesInst.imagenes[i];
+        const baseName =
+          rawPath?.substring(rawPath.lastIndexOf("/") + 1) ||
+          `${instId}_${Date.now()}_${i}.jpg`;
+
+        let finalPath = rawPath;
+        if (!rawPath || !rawPath.startsWith(`${DIF_DIR}/`)) {
+          try {
+            finalPath = await ensureInSandbox(rawPath || "", baseName);
+            needsUpdate = true;
+          } catch (copyErr) {
+            console.warn("No se pudo normalizar imagen:", rawPath, copyErr);
+            continue;
+          }
+        }
+
+        const fileNameOnly = finalPath.replace(`${DIF_DIR}/`, "");
+        if (!nombresEnDir.has(fileNameOnly)) {
+          const exists = await statInSandbox(finalPath);
+          if (!exists) {
+            console.warn("Imagen faltante; se omite:", finalPath);
+            needsUpdate = true;
+            continue;
+          }
+          nombresEnDir.add(fileNameOnly);
+        }
+
+        nuevasImagenes.push(finalPath);
+        if (previews.length < 2) {
+          const base64 = await readFromSandbox(finalPath);
+          previews.push(`data:image/jpeg;base64,${base64}`);
         }
       }
 
-      setImagenesGuardadas(imgsMostrar);
-      setNumImagenes(imgsMostrar.length);
+      if (needsUpdate) {
+        const index = imagenesSubir.findIndex((item: any) => item.inst_id === instId);
+        if (index !== -1) {
+          imagenesSubir[index] = {
+            ...imagenesInst,
+            imagenes: nuevasImagenes,
+            imagenes_mostrar: previews,
+          };
+          await Preferences.set({
+            key: "imagenes_subir",
+            value: JSON.stringify(imagenesSubir),
+          });
+        }
+      }
+
+      setImagenesGuardadas(previews);
+      setNumImagenes(Math.min(nuevasImagenes.length, 2));
     } catch (err) {
       console.error("Error al cargar imágenes y firma guardadas:", err);
     }
@@ -139,79 +185,19 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         const safeClave = String(claveRaw).replace(/[^a-zA-Z0-9_-]/g, "");
         const ts = Date.now();
 
-        // DataURL -> ext + base64 (sin encabezado)
         const m = dataUrl.match(/^data:image\/(.+?);base64,(.+)$/);
-        const ext0 = (m && m[1]) ? m[1] : "png";
-        const base64 = (m && m[2]) ? m[2] : dataUrl.replace(/^data:.*;base64,/, "");
+        const ext0 = m?.[1] || "png";
+        const base64 = m?.[2] || dataUrl.replace(/^data:.*;base64,/, "");
         const ext = ext0 === "jpeg" ? "jpg" : ext0;
         const fileName = `Firma-${safeClave}-${ts}.${ext}`;
 
-        await ensureDifDir();
-
-        // 1) Guarda en sandbox siempre (no perdemos la firma aunque Galería falle)
-        await Filesystem.writeFile({
-          path: inDif(fileName),
-          data: base64,              // base64 puro
-          directory: Directory.Data, // sandbox de la app
-          recursive: true,
-        });
-
-        // 2) Intenta guardar en Galería si el plugin está disponible
-        const canUseMedia = typeof (Media as any)?.savePhoto === "function";
-        if (!canUseMedia) {
-          console.warn("Media plugin no disponible en runtime. Se guardó en sandbox /dif.");
-          return;
-        }
-
-        // 3) Permisos Android 13+ y iOS de forma explícita
-        const perm = await (Media as any).checkPermissions?.();
-        if (!perm || perm.photos !== "granted") {
-          const req = await (Media as any).requestPermissions?.({ permissions: ["photos"] });
-          if (!req || req.photos !== "granted") {
-            console.warn("Permiso de fotos no concedido. Se guardó en sandbox /dif.");
-            return;
-          }
-        }
-
-        // 4) Guarda en galería con álbum “dif”
-        const result = await (Media as any).savePhoto({
-          // Usa dataURL completo por compatibilidad
-          path: `data:image/${ext === "jpg" ? "jpeg" : ext};base64,${base64}`,
-          fileName,
-          album: "dif", // álbum de la galería
-        });
-
-        if (!result || !result.path) {
-          console.warn("Media.savePhoto no regresó path. Ya está en sandbox /dif.");
-        }
+        await ensureInSandbox(dataUrl, fileName);
+        await saveCopyToGalleryFromBase64(base64, `Firma-${safeClave}-${ts}`);
       } catch (e) {
         console.warn("Error al guardar la firma. Ya está en sandbox /dif. Detalle:", e);
-        // Ya escribimos en sandbox; no hacemos nada más aquí
       }
     })();
   };
-
-  // Rellenar con valor máximo
-  const llenarMaximo = (index: number) => {
-    const newDatosInst = { ...datosInst };
-    newDatosInst.productos[index].entregado = newDatosInst.productos[index].cantidad;
-    setDatosInst(newDatosInst);
-  };
-
-  // Actualizar valor de producto
-  const updateList = (event: CustomEvent, index: number) => {
-    const format = /^\d*\.?\d*$/;
-    const value = (event as any).detail?.value ?? "";
-    if (format.test(value)) {
-      const newDatosInst = { ...datosInst };
-      newDatosInst.productos[index].entregado = value;
-      setDatosInst(newDatosInst);
-    }
-  };
-
-  const [showAlert, setShowAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState("");
-
   // ============================================================
   // FOTOS: captura + persistencia en sandbox /dif y álbum "dif"
   // ============================================================
@@ -220,101 +206,41 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     dataFilename: string;
     galleryPath?: string;
   }> => {
-    const isAndroid = Capacitor.getPlatform() === "android";
-
     const photo = await Camera.getPhoto({
       quality: 90,
       allowEditing: false,
-      resultType: isAndroid ? CameraResultType.Base64 : CameraResultType.Uri,
+      resultType: CameraResultType.Uri,
       source: CameraSource.Camera,
-      saveToGallery: true, // el OEM puede publicarla; igual forzaremos con Media
+      saveToGallery: true,
       correctOrientation: true,
     });
 
-    let previewUrl: string;
-    let base64Data: string;
-
-    if (isAndroid && photo.base64String) {
-      base64Data = photo.base64String; // sin encabezado
-      const fmt = photo.format || "jpeg";
-      previewUrl = `data:image/${fmt};base64,${base64Data}`;
-    } else {
-      const srcPath = photo.path ?? photo.webPath;
-      if (!srcPath) throw new Error("No path returned by Camera");
-      previewUrl = Capacitor.convertFileSrc(srcPath);
-      // Lee y pasa a base64 (iOS/webview)
-      try {
-        const read = await Filesystem.readFile({ path: srcPath });
-        if (typeof read.data === "string") {
-          base64Data = read.data;
-        } else {
-          const blobFromFs = read.data as Blob;
-          base64Data = await new Promise<string>((resolve, reject) => {
-            const r = new FileReader();
-            r.onloadend = () => {
-              const s = (r.result as string) || "";
-              const i = s.indexOf(",");
-              resolve(i >= 0 ? s.slice(i + 1) : s);
-            };
-            r.onerror = reject;
-            r.readAsDataURL(blobFromFs);
-          });
-        }
-      } catch {
-        const resp = await fetch(srcPath);
-        const blob = await resp.blob();
-        base64Data = await new Promise<string>((resolve, reject) => {
-          const r = new FileReader();
-          r.onloadend = () => {
-            const s = (r.result as string) || "";
-            const i = s.indexOf(",");
-            resolve(i >= 0 ? s.slice(i + 1) : s);
-          };
-          r.onerror = reject;
-          r.readAsDataURL(blob);
-        });
-      }
-    }
-
+    const fmt0 = photo.format || "jpeg";
+    const fmt = fmt0 === "jpeg" ? "jpg" : fmt0;
     const claveRawForPhoto = (datosInst && (datosInst as any).clave) ?? "";
     const safeClaveForPhoto = String(claveRawForPhoto).replace(/[^a-zA-Z0-9_-]/g, "");
     const ts = Date.now();
-    const dataFilename = `Evidencia-${safeClaveForPhoto}-${ts}.jpg`;
+    const fileName = `Evidencia-${safeClaveForPhoto}-${ts}.${fmt}`;
 
-    await ensureDifDir();
+    const originPath =
+      photo.path ||
+      photo.webPath ||
+      (photo.base64String ? `data:image/${fmt0};base64,${photo.base64String}` : "");
 
-    // Siempre persistimos en sandbox /dif
-    await Filesystem.writeFile({
-      path: inDif(dataFilename),
-      data: base64Data,
-      directory: Directory.Data,
-      recursive: true,
-    });
-
-    // ✅ Fallback garantizado a Galería (MediaStore) → álbum "dif"
-    try {
-      const canUseMedia = typeof (Media as any)?.savePhoto === "function";
-      if (canUseMedia) {
-        const perm = await (Media as any).checkPermissions?.();
-        if (!perm || perm.photos !== "granted") {
-          await (Media as any).requestPermissions?.({ permissions: ["photos"] });
-        }
-        await (Media as any).savePhoto({
-          path: `data:image/jpeg;base64,${base64Data}`,
-          fileName: `Evidencia-${safeClaveForPhoto}-${ts}.jpg`,
-          album: "dif",
-        });
-      } else {
-        console.warn("Media plugin no disponible. Foto guardada en sandbox /dif.");
-      }
-    } catch (e) {
-      console.warn("No se pudo publicar en MediaStore (se mantiene en sandbox /dif):", e);
+    if (!originPath) {
+      throw new Error("No path returned by Camera");
     }
+
+    const dataFilename = await ensureInSandbox(originPath, fileName);
+    const base64Data = await readBase64Smart(dataFilename);
+    const previewUrl = `data:image/${fmt0};base64,${base64Data}`;
+
+    await saveCopyToGalleryFromBase64(base64Data, `Evidencia-${safeClaveForPhoto}-${ts}`);
 
     return {
       previewUrl,
-      dataFilename: inDif(dataFilename), // guardamos la ruta con prefijo dif/
-      galleryPath: photo.path || photo.webPath,
+      dataFilename,
+      galleryPath: originPath,
     };
   };
 
@@ -322,8 +248,8 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const guardarProductos = async () => {
     if (numImagenes < 2) {
       presentAlert({
-        header: "Faltan imágenes",
-        message: "Debes capturar al menos dos imágenes antes de guardar.",
+        header: "Faltan imÃ¡genes",
+        message: "Debes capturar al menos dos imÃ¡genes antes de guardar.",
         cssClass: "alert-android",
         buttons: ["Ok"],
       });
@@ -348,8 +274,8 @@ export const useInstitucion = (institucionData: any, instId: string) => {
 
     if (!datosInst.quien_recibe || datosInst.quien_recibe === "") {
       presentAlert({
-        header: "Falta información",
-        message: "No has ingresado la persona que está recibiendo los productos.",
+        header: "Falta informaciÃ³n",
+        message: "No has ingresado la persona que estÃ¡ recibiendo los productos.",
         cssClass: "alert-android",
         buttons: ["Ok"],
       });
@@ -359,7 +285,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     for (let i = 0; i < (datosInst.productos?.length || 0); i++) {
       if (isNaN(datosInst.productos[i].entregado)) {
         presentAlert({
-          header: "Información incorrecta",
+          header: "InformaciÃ³n incorrecta",
           message: "Alguna cantidad tiene un mal formato.",
           cssClass: "alert-android",
           buttons: ["Ok"],
@@ -368,7 +294,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       }
       if (+datosInst.productos[i].entregado > +datosInst.productos[i].cantidad) {
         presentAlert({
-          header: "Información incorrecta",
+          header: "InformaciÃ³n incorrecta",
           message: "Alguna cantidad entregada es mayor a la cantidad a entregar.",
           cssClass: "alert-android",
           buttons: ["Ok"],
@@ -399,7 +325,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       await Preferences.set({ key: "info_por_guardar", value: "1" });
       await Preferences.set({ key: "distDatos", value: JSON.stringify(distDatos) });
 
-      // Merge con imágenes previas y NUEVAS, respetando máximo 2
+      // Merge con imÃ¡genes previas y NUEVAS, respetando mÃ¡ximo 2
       const { value } = await Preferences.get({ key: "imagenes_subir" });
       let arregloImagenes: any[] = value && value !== "" ? JSON.parse(value) : [];
       const existingIndex = arregloImagenes.findIndex((item: any) => item.inst_id === instId);
@@ -407,17 +333,19 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       const prevImagenes = existingIndex !== -1 ? (arregloImagenes[existingIndex].imagenes || []) : [];
       const prevImagenesMostrar = existingIndex !== -1 ? (arregloImagenes[existingIndex].imagenes_mostrar || []) : [];
 
-      // 🔒 filtra nombres inexistentes en sandbox (evita “File does not exist” después)
+      // ðŸ”’ filtra nombres inexistentes en sandbox (evita â€œFile does not existâ€ despuÃ©s)
       const prevFiltradas: string[] = [];
       const prevMostrarFiltradas: string[] = [];
       for (let i = 0; i < prevImagenes.length; i++) {
-        if (await statInSandbox(prevImagenes[i])) {
-          prevFiltradas.push(prevImagenes[i]);
+        const normalizedPrev = inDif(prevImagenes[i]);
+        if (await statInSandbox(normalizedPrev)) {
+          prevFiltradas.push(normalizedPrev);
           prevMostrarFiltradas.push(prevImagenesMostrar[i]);
         }
       }
 
-      const combinadasImagenes = [...prevFiltradas, ...imagenesStorage].slice(0, 2);
+      const nuevasEnMemoria = imagenesStorage.map((img) => inDif(img));
+      const combinadasImagenes = [...prevFiltradas, ...nuevasEnMemoria].slice(0, 2);
       const combinadasImagenesMostrar = [...prevMostrarFiltradas, ...imagenPreview].slice(0, 2);
 
       const objetoImagenes: any = {
@@ -445,7 +373,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       console.error("Error al guardar productos:", err);
       presentAlert({
         header: "Error",
-        message: "Ocurrió un error al guardar los datos.",
+        message: "OcurriÃ³ un error al guardar los datos.",
         cssClass: "alert-android",
         buttons: ["Ok"],
       });
@@ -468,7 +396,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
           const imagenesInst = arregloImagenes[instIndex];
           const nuevasImagenes = [...(imagenesInst.imagenes || [])];
           const nuevasImagenesMostrar = [...(imagenesInst.imagenes_mostrar || [])];
-          nuevasImagenes.splice(index, 1);
+          const [removed] = nuevasImagenes.splice(index, 1);
           nuevasImagenesMostrar.splice(index, 1);
           arregloImagenes[instIndex] = {
             ...imagenesInst,
@@ -476,6 +404,14 @@ export const useInstitucion = (institucionData: any, instId: string) => {
             imagenes_mostrar: nuevasImagenesMostrar,
           };
           await Preferences.set({ key: "imagenes_subir", value: JSON.stringify(arregloImagenes) });
+
+          if (removed) {
+            try {
+              await Filesystem.deleteFile({ path: inDif(removed), directory: Directory.Data });
+            } catch (deleteErr) {
+              console.warn("No se pudo borrar imagen guardada:", deleteErr);
+            }
+          }
         }
       }
     } catch (err) {
@@ -487,11 +423,11 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     setNumImagenes((prev) => (prev > 0 ? prev - 1 : 0));
   };
 
-  // ---------- cámara ----------
+  // ---------- cÃ¡mara ----------
   const mostrar_camara = async () => {
     if (numImagenes >= 2) {
       presentAlert({
-        header: "Máximo de imágenes",
+        header: "MÃ¡ximo de imÃ¡genes",
         message: "Solo puedes tomar hasta dos fotos. Elimina alguna para capturar otra.",
         cssClass: "alert-android",
         buttons: ["Ok"],
@@ -502,7 +438,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     try {
       const { previewUrl, dataFilename } = await takePhotoAndPersist();
       setImagenPreview((prev) => [...prev, previewUrl]);     // para UI
-      setImagenesStorage((prev) => [...prev, dataFilename]); // nombre en sandbox (/dif/…)
+      setImagenesStorage((prev) => [...prev, dataFilename]); // nombre en sandbox (/dif/â€¦)
       setNumImagenes((n) => n + 1);
     } catch (err) {
       console.error("Error al tomar/guardar la foto:", err);
@@ -550,3 +486,9 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     statInSandbox,
   };
 };
+
+
+
+
+
+
