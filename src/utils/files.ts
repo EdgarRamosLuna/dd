@@ -113,40 +113,53 @@ export async function readBase64Smart(pathLike: string) {
 }
 
 /** Guarda una copia visible en la galería (álbum "DIF") usando base64 (sin encabezado). */
+// Reemplaza SOLO esta función en src/utils/files.ts
 export async function saveCopyToGalleryFromBase64(base64Jpeg: string, fileNameNoExt: string, albumName = "DIF") {
-  const canUseMedia = typeof (Media as any)?.savePhoto === "function";
-  if (!canUseMedia) return;
   try {
-    const perm = await (Media as any).checkPermissions?.();
+    // 1) perms (el plugin devuelve { photos: 'granted'|'denied' ... })
+    let perm: any = undefined;
+    if (typeof (Media as any).checkPermissions === "function") {
+      perm = await (Media as any).checkPermissions();
+    }
     if (!perm || perm.photos !== "granted") {
-      const req = await (Media as any).requestPermissions?.({ permissions: ["photos"] });
-      if (!req || req.photos !== "granted") {
-        return;
+      if (typeof (Media as any).requestPermissions === "function") {
+        const req = await (Media as any).requestPermissions({ permissions: ["photos"] });
+        if (!req || req.photos !== "granted") return;
       }
     }
+
+    // 2) data URL
     const dataUrl = base64Jpeg.startsWith("data:")
       ? base64Jpeg
-      : data:image/jpeg;base64,;
-    await (Media as any).createAlbum?.({ name: albumName }).catch(() => {});
+      : `data:image/jpeg;base64,${base64Jpeg}`;
 
-    let albumIdentifier: string | undefined;
+    // 3) garantiza álbum y obtiene identifier
     try {
-      const { albums } = await Media.getAlbums();
-      albumIdentifier = albums.find((album: any) => album.name === albumName)?.identifier;
-    } catch (albumErr) {
-      console.warn("[files] No se pudo obtener el identificador del álbum:", albumErr);
-    }
+      if (typeof (Media as any).createAlbum === "function") {
+        await (Media as any).createAlbum({ name: albumName });
+      }
+    } catch { /* ya existe */ }
 
-    const sanitizedName = fileNameNoExt.replace(/\.[a-zA-Z0-9]+$/, "");
-    await Media.savePhoto({
-      path: dataUrl,
-      fileName: sanitizedName || fileNameNoExt,
-      albumIdentifier,
-    });
+    let albumIdentifier: string | undefined = undefined;
+    try {
+      const res: any = await (Media as any).getAlbums();
+      const dif = (res?.albums || []).find((a: any) => a?.name === albumName);
+      albumIdentifier = dif?.identifier;
+    } catch { /* continúa sin identifier */ }
+
+    // 4) guarda en galería (evita propiedades no tipadas)
+    const sanitized = (fileNameNoExt || "foto").replace(/\.[a-z0-9]+$/i, "");
+    const opts: any = { path: dataUrl };
+    if (albumIdentifier) opts.albumIdentifier = albumIdentifier;
+    // Si tu versión del plugin soporta fileName, se lo pasamos; si no, lo ignora.
+    opts.fileName = sanitized;
+
+    await (Media as any).savePhoto(opts);
   } catch (err) {
     console.warn("[files] saveCopyToGalleryFromBase64:", err);
   }
 }
+
 
 export { DIF_DIR };
 
