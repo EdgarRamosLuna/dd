@@ -13,7 +13,7 @@ import {
   saveCopyToGalleryFromBase64,
   DIF_DIR,
 } from "../utils/files";
-
+import { Media } from "@capacitor-community/media";
 export const useInstitucion = (institucionData: any, instId: string) => {
   // Estados principales
   const [datosInst, setDatosInst] = useState<any>(institucionData || {});
@@ -177,29 +177,54 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   // ============================================================
   // FIRMAS: guarda en estado, sandbox /dif y galería álbum "dif"
   // ============================================================
-  const handleGuardarFirma = (dataUrl: string) => {
-    setFirmaPreview(dataUrl);
-    setDatosInst((prev: any) => ({ ...prev, firma: dataUrl }));
+const handleGuardarFirma = async (dataUrl: string) => {
+  // 1) Mantén lo que ya funcionaba en la app
+  setFirmaPreview(dataUrl);
+  setDatosInst((prev: any) => ({ ...prev, firma: dataUrl }));
 
-    (async () => {
-      try {
-        const claveRaw = (datosInst && (datosInst as any).clave) ?? "";
-        const safeClave = String(claveRaw).replace(/[^a-zA-Z0-9_-]/g, "");
-        const ts = Date.now();
+  try {
+    const claveRaw = (datosInst && (datosInst as any).clave) ?? "";
+    const safeClave = String(claveRaw).replace(/[^a-zA-Z0-9_-]/g, "");
+    const ts = Date.now();
 
-        const m = dataUrl.match(/^data:image\/(.+?);base64,(.+)$/);
-        const ext0 = m?.[1] || "png";
-        const base64 = m?.[2] || dataUrl.replace(/^data:.*;base64,/, "");
-        const ext = ext0 === "jpeg" ? "jpg" : ext0;
-        const fileName = `Firma-${safeClave}-${ts}.${ext}`;
+    // separar encabezado y base64
+    const m = dataUrl.match(/^data:image\/(.+?);base64,(.+)$/);
+    const ext0 = m?.[1] || "png";
+    const base64 = m?.[2] || dataUrl.replace(/^data:.*;base64,/, "");
+    const ext = ext0 === "jpeg" ? "jpg" : ext0;
+    const fileName = `Firma-${safeClave}-${ts}.${ext}`;
 
-        await ensureInSandbox(dataUrl, fileName);
-        await saveCopyToGalleryFromBase64(base64, `Firma-${safeClave}-${ts}`);
-      } catch (e) {
-        console.warn("Error al guardar la firma. Ya está en sandbox /dif. Detalle:", e);
-      }
-    })();
-  };
+    // 2) Guardar SIEMPRE en sandbox (/dif)
+    //    ensureInSandbox sabe manejar dataUrl, así que aquí se crea el archivo
+    const relPath = await ensureInSandbox(dataUrl, fileName); // p.ej. "dif/Firma-...jpg"
+    console.log("[firma] guardada en sandbox:", relPath);
+
+    // 3) Obtener URI nativo del archivo en sandbox
+    const { uri } = await Filesystem.getUri({
+      directory: Directory.Data,
+      path: relPath,
+    });
+    console.log("[firma] uri nativo:", uri);
+
+    // 4) Guardar una copia en la galería usando ese URI
+    //    (sin base64, solo el path real)
+    try {
+      const opts: any = { path: uri };
+
+      // si tu plugin soporta álbum, podemos intentar esto:
+      // (no es obligatorio; si da problemas, quita albumIdentifier/fileName)
+      const sanitizedName = `Firma-${safeClave}-${ts}`;
+      opts.fileName = sanitizedName;
+
+      await (Media as any).savePhoto(opts);
+      console.log("[firma] guardada en galería (savePhoto)");
+    } catch (e) {
+      console.warn("[firma] fallo savePhoto, pero archivo sigue en sandbox:", e);
+    }
+  } catch (e) {
+    console.warn("Error al guardar la firma en dispositivo:", e);
+  }
+};
 
   // Rellenar con valor máximo
   const llenarMaximo = (index: number) => {
