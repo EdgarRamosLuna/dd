@@ -59,6 +59,15 @@ const Home: React.FC = () => {
     setShowAlert(true);
     setTimeout(() => setShowAlert(false), 4000);
   };
+
+  const sanitizeUploadName = (
+    value: string | undefined | null,
+    fallback: string
+  ) => {
+    const candidate = (value || "").split("/").pop()?.trim() || "";
+    const cleaned = candidate.replace(/[^a-zA-Z0-9._-]/g, "_");
+    return cleaned || fallback;
+  };
   // Referencias para manejar timeouts y otros valores que no deben causar re-renders
   const searchTimeout = useRef<any>(null);
 
@@ -310,13 +319,13 @@ const Home: React.FC = () => {
       if (!value) {
         throw new Error("No hay imágenes por guardar");
       }      
-      const list: Array<{ inst_id: string; imagenes: string[]; firma: string }> =
+      const list: Array<{ inst_id: string; imagenes: string[]; firma?: string; firma_nombre?: string }> =
         JSON.parse(value);      
       if (list.length === 0) {
         throw new Error("Lista vacía");
       }
 
-      for (const { inst_id, imagenes, firma  } of list) {
+      for (const { inst_id, imagenes, firma, firma_nombre } of list) {
         for (const imagePath of imagenes) {
           const uniqueName = `${inst_id}_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
           const relPath = await ensureInSandbox(imagePath, uniqueName);
@@ -369,8 +378,11 @@ const Home: React.FC = () => {
           }
           const blob = new Blob([bytes], { type: `image/${contentType}` });
 
+          const fallbackFirmaName = `firma_${inst_id}_${Date.now()}.${contentType}`;
+          const firmaUploadName = sanitizeUploadName(firma_nombre, fallbackFirmaName);
+
           const fdFirma = new FormData();
-          fdFirma.append("file", blob, `firma_${Date.now()}.${contentType}`);
+          fdFirma.append("file", blob, firmaUploadName);
           fdFirma.append("firmaBase64", firma); // importante para PHP
           fdFirma.append("inst_id", inst_id); // también necesario en backend
 

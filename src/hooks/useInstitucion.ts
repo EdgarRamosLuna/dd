@@ -168,6 +168,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       }
 
       setImagenesGuardadas(previews);
+      setFirmaPreview(imagenesInst.firma || null);
       setNumImagenes(Math.min(nuevasImagenes.length, 2));
     } catch (err) {
       console.error("Error al cargar imágenes y firma guardadas:", err);
@@ -178,25 +179,31 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   // FIRMAS: guarda en estado, sandbox /dif y galería álbum "dif"
   // ============================================================
   const handleGuardarFirma = (dataUrl: string) => {
+    const claveRaw = (datosInst && (datosInst as any).clave) ?? "";
+    const safeClaveBase = String(claveRaw || "SINCLAVE").replace(/[^a-zA-Z0-9_-]/g, "");
+    const safeClave = safeClaveBase || "SINCLAVE";
+    const ts = Date.now();
+
+    const match = dataUrl.match(/^data:image\/(.+?);base64,(.+)$/);
+    const ext0 = match?.[1] || "png";
+    const base64Payload = match?.[2] || dataUrl.replace(/^data:.*;base64,/, "");
+    const ext = ext0 === "jpeg" ? "jpg" : ext0;
+    const baseFileName = `Firma-${safeClave}-${ts}`;
+    const fileName = `${baseFileName}.${ext}`;
+
     setFirmaPreview(dataUrl);
-    setDatosInst((prev: any) => ({ ...prev, firma: dataUrl }));
+    setDatosInst((prev: any) => ({
+      ...prev,
+      firma: dataUrl,
+      firma_nombre: fileName,
+    }));
 
     (async () => {
       try {
-        const claveRaw = (datosInst && (datosInst as any).clave) ?? "";
-        const safeClave = String(claveRaw).replace(/[^a-zA-Z0-9_-]/g, "");
-        const ts = Date.now();
-
-        const m = dataUrl.match(/^data:image\/(.+?);base64,(.+)$/);
-        const ext0 = m?.[1] || "png";
-        const base64 = m?.[2] || dataUrl.replace(/^data:.*;base64,/, "");
-        const ext = ext0 === "jpeg" ? "jpg" : ext0;
-        const fileName = `Firma-${safeClave}-${ts}.${ext}`;
-
         await ensureInSandbox(dataUrl, fileName);
-        await saveCopyToGalleryFromBase64(base64, `Firma-${safeClave}-${ts}`);
+        await saveCopyToGalleryFromBase64(base64Payload, baseFileName, { extension: ext });
       } catch (e) {
-        console.warn("Error al guardar la firma. Ya está en sandbox /dif. Detalle:", e);
+        console.warn("Error al guardar la firma. Ya esta en sandbox /dif. Detalle:", e);
       }
     })();
   };
@@ -241,7 +248,8 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     const claveRawForPhoto = (datosInst && (datosInst as any).clave) ?? "";
     const safeClaveForPhoto = String(claveRawForPhoto).replace(/[^a-zA-Z0-9_-]/g, "");
     const ts = Date.now();
-    const fileName = `Evidencia-${safeClaveForPhoto}-${ts}.${fmt}`;
+    const baseFileName = `Evidencia-${safeClaveForPhoto}-${ts}`;
+    const fileName = `${baseFileName}.${fmt}`;
 
     const originPath =
       photo.path ||
@@ -256,7 +264,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     const base64Data = await readBase64Smart(dataFilename);
     const previewUrl = `data:image/${fmt0};base64,${base64Data}`;
 
-    await saveCopyToGalleryFromBase64(base64Data, `Evidencia-${safeClaveForPhoto}-${ts}`);
+    await saveCopyToGalleryFromBase64(base64Data, baseFileName, { extension: fmt });
 
     return {
       previewUrl,
@@ -329,6 +337,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       save_chofer: "1",
       fecha_guardado: dateTime,
       ...(firmaPreview ? { firma: firmaPreview } : datosInst?.firma ? { firma: datosInst.firma } : {}),
+      ...(datosInst?.firma_nombre ? { firma_nombre: datosInst.firma_nombre } : {}),
     };
     setDatosInst(newDatosInst);
     await guardar_storage_productos(newDatosInst);
@@ -374,7 +383,12 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         imagenes_mostrar: combinadasImagenesMostrar,
         inst_id: instId,
       };
-      if (firmaPreview) objetoImagenes.firma = firmaPreview;
+      if (datosActualizados?.firma) {
+        objetoImagenes.firma = datosActualizados.firma;
+      }
+      if (datosActualizados?.firma_nombre) {
+        objetoImagenes.firma_nombre = datosActualizados.firma_nombre;
+      }
 
       if (existingIndex !== -1) {
         arregloImagenes[existingIndex] = objetoImagenes;
