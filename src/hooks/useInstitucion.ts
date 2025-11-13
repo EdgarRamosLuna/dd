@@ -23,6 +23,8 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [imagenesGuardadas, setImagenesGuardadas] = useState<string[]>([]);
   const [firmaPreview, setFirmaPreview] = useState<string | null>(null);
   const [numImagenes, setNumImagenes] = useState(0);
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
 
   // Hooks auxiliares
   const [presentAlert] = useIonAlert();
@@ -197,6 +199,25 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         console.warn("Error al guardar la firma. Ya está en sandbox /dif. Detalle:", e);
       }
     })();
+  };
+
+  // Rellenar con valor máximo
+  const llenarMaximo = (index: number) => {
+    if (!datosInst?.productos) return;
+    const newDatosInst = { ...datosInst };
+    newDatosInst.productos[index].entregado = newDatosInst.productos[index].cantidad;
+    setDatosInst(newDatosInst);
+  };
+
+  // Actualizar valor de producto
+  const updateList = (event: CustomEvent, index: number) => {
+    const format = /^\d*\.?\d*$/;
+    const value = (event as any).detail?.value ?? "";
+    if (format.test(value) && datosInst?.productos) {
+      const newDatosInst = { ...datosInst };
+      newDatosInst.productos[index].entregado = value;
+      setDatosInst(newDatosInst);
+    }
   };
   // ============================================================
   // FOTOS: captura + persistencia en sandbox /dif y álbum "dif"

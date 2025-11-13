@@ -1,4 +1,4 @@
-// src/utils/files.ts
+﻿// src/utils/files.ts
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Media } from "@capacitor-community/media";
 
@@ -126,12 +126,22 @@ export async function saveCopyToGalleryFromBase64(base64Jpeg: string, fileNameNo
     }
     const dataUrl = base64Jpeg.startsWith("data:")
       ? base64Jpeg
-      : `data:image/jpeg;base64,${base64Jpeg}`;
+      : data:image/jpeg;base64,;
     await (Media as any).createAlbum?.({ name: albumName }).catch(() => {});
+
+    let albumIdentifier: string | undefined;
+    try {
+      const { albums } = await Media.getAlbums();
+      albumIdentifier = albums.find((album: any) => album.name === albumName)?.identifier;
+    } catch (albumErr) {
+      console.warn("[files] No se pudo obtener el identificador del álbum:", albumErr);
+    }
+
+    const sanitizedName = fileNameNoExt.replace(/\.[a-zA-Z0-9]+$/, "");
     await Media.savePhoto({
       path: dataUrl,
-      fileName: `${fileNameNoExt}.jpg`,
-      album: albumName,
+      fileName: sanitizedName || fileNameNoExt,
+      albumIdentifier,
     });
   } catch (err) {
     console.warn("[files] saveCopyToGalleryFromBase64:", err);
@@ -139,3 +149,4 @@ export async function saveCopyToGalleryFromBase64(base64Jpeg: string, fileNameNo
 }
 
 export { DIF_DIR };
+
