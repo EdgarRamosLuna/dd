@@ -4,10 +4,10 @@
 export const API_CONFIG = {
     // URL base para los servicios de la API
     // TEST
-    // BASE_URL: "https://phpstack-358253-5234722.cloudwaysapps.com/api/",
+     BASE_URL: "https://phpstack-358253-5234722.cloudwaysapps.com/api/",
     // PROD Staging
     // BASE_URL: "https://phpstack-358253-5935770.cloudwaysapps.com/api/",
-     BASE_URL: "https://desayunosdifcoah.com/api/",
+     // BASE_URL: "https://desayunosdifcoah.com/api/",
     
     // URLs comentadas para entornos de desarrollo/pruebas
     // DEV_URL: "http://10.122.161.70:8888/Despensas/api/",
