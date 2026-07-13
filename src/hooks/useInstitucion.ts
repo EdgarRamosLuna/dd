@@ -23,6 +23,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [imagenesGuardadas, setImagenesGuardadas] = useState<string[]>([]);
   const [firmaPreview, setFirmaPreview] = useState<string | null>(null);
   const [numImagenes, setNumImagenes] = useState(0);
+  const [guardandoProductos, setGuardandoProductos] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
 
@@ -158,7 +159,6 @@ export const useInstitucion = (institucionData: any, instId: string) => {
           imagenesSubir[index] = {
             ...imagenesInst,
             imagenes: nuevasImagenes,
-            imagenes_mostrar: previews,
           };
           await Preferences.set({
             key: "imagenes_subir",
@@ -275,6 +275,8 @@ export const useInstitucion = (institucionData: any, instId: string) => {
 
   // ---------- guardar productos ----------
   const guardarProductos = async () => {
+    if (guardandoProductos) return;
+
     if (numImagenes < 2) {
       presentAlert({
         header: "Faltan imÃ¡genes",
@@ -332,55 +334,50 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       }
     }
 
-    const newDatosInst = {
-      ...datosInst,
-      save_chofer: "1",
-      fecha_guardado: dateTime,
-      ...(firmaPreview ? { firma: firmaPreview } : datosInst?.firma ? { firma: datosInst.firma } : {}),
-      ...(datosInst?.firma_nombre ? { firma_nombre: datosInst.firma_nombre } : {}),
-    };
-    setDatosInst(newDatosInst);
-    await guardar_storage_productos(newDatosInst);
+    setGuardandoProductos(true);
+    try {
+      const newDatosInst = {
+        ...datosInst,
+        save_chofer: "1",
+        fecha_guardado: dateTime,
+        ...(firmaPreview ? { firma: firmaPreview } : datosInst?.firma ? { firma: datosInst.firma } : {}),
+        ...(datosInst?.firma_nombre ? { firma_nombre: datosInst.firma_nombre } : {}),
+      };
+      await guardar_storage_productos(newDatosInst);
+      setDatosInst(newDatosInst);
+    } finally {
+      setGuardandoProductos(false);
+    }
   };
 
   // ---------- guardar en Preferences ----------
   const guardar_storage_productos = async (datosActualizados: any) => {
     try {
-      const { value: distDatosValue } = await Preferences.get({ key: "distDatos" });
-      const distDatos = distDatosValue ? JSON.parse(distDatosValue) : [];
-
-      const index = distDatos.findIndex((item: any) => item.dist_inst_id === instId);
-      if (index !== -1) distDatos[index] = datosActualizados;
-
-      await Preferences.set({ key: "info_por_guardar", value: "1" });
-      await Preferences.set({ key: "distDatos", value: JSON.stringify(distDatos) });
-
-      // Merge con imÃ¡genes previas y NUEVAS, respetando mÃ¡ximo 2
+      // Primero dejamos asegurada la cola de imagenes. Si la app se cierra aqui,
+      // aun no marcamos save_chofer y el usuario puede volver a guardar.
       const { value } = await Preferences.get({ key: "imagenes_subir" });
       let arregloImagenes: any[] = value && value !== "" ? JSON.parse(value) : [];
       const existingIndex = arregloImagenes.findIndex((item: any) => item.inst_id === instId);
 
       const prevImagenes = existingIndex !== -1 ? (arregloImagenes[existingIndex].imagenes || []) : [];
-      const prevImagenesMostrar = existingIndex !== -1 ? (arregloImagenes[existingIndex].imagenes_mostrar || []) : [];
 
-      // ðŸ”’ filtra nombres inexistentes en sandbox (evita â€œFile does not existâ€ despuÃ©s)
       const prevFiltradas: string[] = [];
-      const prevMostrarFiltradas: string[] = [];
       for (let i = 0; i < prevImagenes.length; i++) {
         const normalizedPrev = inDif(prevImagenes[i]);
         if (await statInSandbox(normalizedPrev)) {
           prevFiltradas.push(normalizedPrev);
-          prevMostrarFiltradas.push(prevImagenesMostrar[i]);
         }
       }
 
       const nuevasEnMemoria = imagenesStorage.map((img) => inDif(img));
       const combinadasImagenes = [...prevFiltradas, ...nuevasEnMemoria].slice(0, 2);
-      const combinadasImagenesMostrar = [...prevMostrarFiltradas, ...imagenPreview].slice(0, 2);
+
+      if (combinadasImagenes.length < 2) {
+        throw new Error("No se encontraron las dos imagenes guardadas en el dispositivo.");
+      }
 
       const objetoImagenes: any = {
         imagenes: combinadasImagenes,
-        imagenes_mostrar: combinadasImagenesMostrar,
         inst_id: instId,
       };
       if (datosActualizados?.firma) {
@@ -398,6 +395,20 @@ export const useInstitucion = (institucionData: any, instId: string) => {
 
       await Preferences.set({ key: "imagenes_subir", value: JSON.stringify(arregloImagenes) });
 
+      const { value: distDatosValue } = await Preferences.get({ key: "distDatos" });
+      const distDatos = distDatosValue ? JSON.parse(distDatosValue) : [];
+      const datosParaDist = { ...datosActualizados };
+      delete datosParaDist.firma;
+
+      const index = distDatos.findIndex((item: any) => item.dist_inst_id === instId);
+      if (index === -1) {
+        throw new Error("No se encontro la institucion en la informacion local.");
+      }
+      distDatos[index] = datosParaDist;
+
+      await Preferences.set({ key: "distDatos", value: JSON.stringify(distDatos) });
+      await Preferences.set({ key: "info_por_guardar", value: "1" });
+
       presentAlert({
         header: "Datos almacenados en el dispositivo",
         message: "Recuerda subir los datos a la nube cuando tengas internet.",
@@ -412,6 +423,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         cssClass: "alert-android",
         buttons: ["Ok"],
       });
+      throw err;
     }
   };
 
@@ -430,13 +442,10 @@ export const useInstitucion = (institucionData: any, instId: string) => {
         if (instIndex !== -1) {
           const imagenesInst = arregloImagenes[instIndex];
           const nuevasImagenes = [...(imagenesInst.imagenes || [])];
-          const nuevasImagenesMostrar = [...(imagenesInst.imagenes_mostrar || [])];
           const [removed] = nuevasImagenes.splice(index, 1);
-          nuevasImagenesMostrar.splice(index, 1);
           arregloImagenes[instIndex] = {
             ...imagenesInst,
             imagenes: nuevasImagenes,
-            imagenes_mostrar: nuevasImagenesMostrar,
           };
           await Preferences.set({ key: "imagenes_subir", value: JSON.stringify(arregloImagenes) });
 
@@ -503,6 +512,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     imagenesGuardadas,
     firmaPreview,
     numImagenes,
+    guardandoProductos,
     cargarImagenesGuardadas,
     llenarMaximo,
     updateList,

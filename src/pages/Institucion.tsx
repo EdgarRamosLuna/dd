@@ -48,6 +48,7 @@ const Institucion: React.FC = () => {
     alertMessage,
     firmaPreview,
     handleGuardarFirma,
+    guardandoProductos,
   } = useInstitucion(institucionData, id);
 
   // Cuando entremos a la vista, cargamos imágenes y firma previas
@@ -260,8 +261,9 @@ const Institucion: React.FC = () => {
             <IonButton
               className="btnGuardarProductos"
               onClick={guardarProductos}
+              disabled={guardandoProductos}
             >
-              Guardar
+              {guardandoProductos ? "Guardando..." : "Guardar"}
             </IonButton>
           </div>
         )}

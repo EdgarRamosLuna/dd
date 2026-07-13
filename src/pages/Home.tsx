@@ -308,6 +308,34 @@ const Home: React.FC = () => {
     });
   };
 
+  type ImagenesSubirItem = {
+    inst_id: string;
+    imagenes: string[];
+    firma?: string;
+    firma_nombre?: string;
+  };
+
+  const guardarColaImagenes = async (queue: ImagenesSubirItem[]) => {
+    await Preferences.set({
+      key: "imagenes_subir",
+      value: queue.length > 0 ? JSON.stringify(queue) : "",
+    });
+  };
+
+  const base64ToBlob = (base64: string, contentType: string) => {
+    const binary = atob(base64);
+    const chunks: Uint8Array[] = [];
+    for (let i = 0; i < binary.length; i += 1024) {
+      const slice = binary.slice(i, i + 1024);
+      const arr = new Uint8Array(slice.length);
+      for (let j = 0; j < slice.length; j++) {
+        arr[j] = slice.charCodeAt(j);
+      }
+      chunks.push(arr);
+    }
+    return new Blob(chunks, { type: contentType });
+  };
+
   // Función para subir imágenes
   // Función para subir imágenes (ejemplo en Home.tsx)
   const subir_imagenes = async () => {
@@ -319,32 +347,42 @@ const Home: React.FC = () => {
       if (!value) {
         throw new Error("No hay imágenes por guardar");
       }      
-      const list: Array<{ inst_id: string; imagenes: string[]; firma?: string; firma_nombre?: string }> =
+      const list: ImagenesSubirItem[] =
         JSON.parse(value);      
-      if (list.length === 0) {
+      if (!Array.isArray(list) || list.length === 0) {
         throw new Error("Lista vacía");
       }
 
-      for (const { inst_id, imagenes, firma, firma_nombre } of list) {
-        for (const imagePath of imagenes) {
+      const queue = list.map((item) => ({
+        ...item,
+        imagenes: Array.isArray(item.imagenes) ? [...item.imagenes] : [],
+      }));
+
+      for (let itemIndex = 0; itemIndex < queue.length;) {
+        const item = queue[itemIndex];
+        const { inst_id, firma, firma_nombre } = item;
+
+        if (!inst_id) {
+          queue.splice(itemIndex, 1);
+          await guardarColaImagenes(queue);
+          continue;
+        }
+
+        while (item.imagenes.length > 0) {
+          const imagePath = item.imagenes[0];
           const uniqueName = `${inst_id}_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-          const relPath = await ensureInSandbox(imagePath, uniqueName);
+          let relPath = "";
+          try {
+            relPath = await ensureInSandbox(imagePath, uniqueName);
+          } catch {
+            throw new Error(`No se encontro una imagen local para ${inst_id}. Vuelve a capturarla antes de subir.`);
+          }
           const fileName = relPath.substring(relPath.lastIndexOf("/") + 1);
 
           const base64 = await readBase64Smart(relPath);
 
           // 3) convertir Base64 → binary chunks → Blob
-          const binary = atob(base64);
-          const chunks: Uint8Array[] = [];
-          for (let i = 0; i < binary.length; i += 512) {
-            const slice = binary.slice(i, i + 512);
-            const arr = new Uint8Array(slice.length);
-            for (let j = 0; j < slice.length; j++) {
-              arr[j] = slice.charCodeAt(j);
-            }
-            chunks.push(arr);
-          }
-          const blob = new Blob(chunks, { type: "image/jpeg" });
+          const blob = base64ToBlob(base64, "image/jpeg");
 
           // 4) armar FormData y subir con fetch
           const fd = new FormData();
@@ -359,11 +397,17 @@ const Home: React.FC = () => {
             throw new Error(`Error ${resp.status}: ${text}`);
           }
 
-          // 5) borrar el archivo local
-          await Filesystem.deleteFile({
-            path: relPath,
-            directory: Directory.Data,
-          });
+          item.imagenes.shift();
+          await guardarColaImagenes(queue);
+
+          try {
+            await Filesystem.deleteFile({
+              path: relPath,
+              directory: Directory.Data,
+            });
+          } catch {
+            // La imagen ya quedo subida; si no se puede borrar localmente no bloquea la cola.
+          }
         }
         if (firma) {
           const matches = firma.match(/^data:image\/(\w+);base64,(.+)$/);
@@ -371,12 +415,7 @@ const Home: React.FC = () => {
 
           const contentType = matches[1];
           const base64Data = matches[2];
-          const binary = atob(base64Data);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) {
-            bytes[i] = binary.charCodeAt(i);
-          }
-          const blob = new Blob([bytes], { type: `image/${contentType}` });
+          const blob = base64ToBlob(base64Data, `image/${contentType}`);
 
           const fallbackFirmaName = `firma_${inst_id}_${Date.now()}.${contentType}`;
           const firmaUploadName = sanitizeUploadName(firma_nombre, fallbackFirmaName);
@@ -396,10 +435,12 @@ const Home: React.FC = () => {
             throw new Error(`Error subiendo firma: ${text}`);
           }
         }
+
+        queue.splice(itemIndex, 1);
+        await guardarColaImagenes(queue);
       }
 
       // 6) todo ok
-      await Preferences.set({ key: "imagenes_subir", value: "" });
       //mostrarAlerta("Todas las imágenes subidas correctamente.", "success");
       await presentAlert({
         header: "Éxito",
