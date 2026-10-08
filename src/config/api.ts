@@ -19,7 +19,7 @@ export const API_CONFIG = {
     LOGIN: 20000,
     DISTRIBUCION: 60000,
   };
-
+ 
   export const FORM_URLENCODED_HEADERS = {
     "Content-Type": "application/x-www-form-urlencoded",
   };
