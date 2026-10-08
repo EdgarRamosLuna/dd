@@ -122,7 +122,7 @@ export async function saveCopyToGalleryFromBase64(
   base64Payload: string,
   fileNameBase: string,
   options: SaveCopyOptions = {}
-) {
+): Promise<boolean> {
   try {
     const albumName = options.albumName ?? "DIF";
     const normalizedExt = (options.extension || "jpg").replace(/^\.+/, "").toLowerCase();
@@ -138,7 +138,7 @@ export async function saveCopyToGalleryFromBase64(
     if (!perm || perm.photos !== "granted") {
       if (typeof (Media as any).requestPermissions === "function") {
         const req = await (Media as any).requestPermissions({ permissions: ["photos"] });
-        if (!req || req.photos !== "granted") return;
+        if (!req || req.photos !== "granted") return false;
       }
     }
 
@@ -168,8 +168,10 @@ export async function saveCopyToGalleryFromBase64(
     opts.fileName = finalFileName;
 
     await (Media as any).savePhoto(opts);
+    return true;
   } catch (err) {
     console.warn("[files] saveCopyToGalleryFromBase64:", err);
+    return false;
   }
 }
 

@@ -3,7 +3,7 @@ import { IonButton, IonIcon } from "@ionic/react";
 import { saveOutline, trashOutline } from "ionicons/icons";
 
 interface FirmaCanvasProps {
-  onGuardarFirma: (dataUrl: string) => void;
+  onGuardarFirma: (dataUrl: string) => void | Promise<void>;
   altura?: number;
 }
 
@@ -14,6 +14,7 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contenedorRef = useRef<HTMLDivElement>(null);
   const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
+  const [guardando, setGuardando] = useState(false);
   const isDrawing = useRef(false);
   const activePointerId = useRef<number | null>(null);
 
@@ -156,11 +157,25 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
     ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
   };
 
-  const guardarFirma = () => {
+  const guardarFirma = async () => {
+    if (guardando) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dataUrl = canvas.toDataURL("image/png");
-    onGuardarFirma(dataUrl);
+    const firmaJpeg = document.createElement("canvas");
+    firmaJpeg.width = canvas.width;
+    firmaJpeg.height = canvas.height;
+    const firmaContext = firmaJpeg.getContext("2d");
+    if (!firmaContext) return;
+    firmaContext.fillStyle = "#fff";
+    firmaContext.fillRect(0, 0, firmaJpeg.width, firmaJpeg.height);
+    firmaContext.drawImage(canvas, 0, 0);
+    const dataUrl = firmaJpeg.toDataURL("image/jpeg", 0.92);
+    setGuardando(true);
+    try {
+      await onGuardarFirma(dataUrl);
+    } finally {
+      setGuardando(false);
+    }
   };
 
   return (
@@ -190,7 +205,7 @@ const FirmaCanvas: React.FC<FirmaCanvasProps> = ({
         onTouchCancel={detenerDibujoTouch}
       />
       <div style={{ marginTop: 10, display: "flex", gap: "0.5rem" }}>
-        <IonButton onClick={guardarFirma}>
+        <IonButton onClick={guardarFirma} disabled={guardando}>
           <IonIcon icon={saveOutline} />
         </IonButton>
         <IonButton onClick={limpiarCanvas}>

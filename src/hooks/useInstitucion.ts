@@ -23,6 +23,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   const [imagenesGuardadas, setImagenesGuardadas] = useState<string[]>([]);
   const [firmaPreview, setFirmaPreview] = useState<string | null>(null);
   const [numImagenes, setNumImagenes] = useState(0);
+  const [guardandoFirma, setGuardandoFirma] = useState(false);
   const [guardandoProductos, setGuardandoProductos] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
@@ -178,7 +179,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
   // ============================================================
   // FIRMAS: guarda en estado, sandbox /dif y galería álbum "dif"
   // ============================================================
-  const handleGuardarFirma = (dataUrl: string) => {
+  const handleGuardarFirma = async (dataUrl: string) => {
     const claveRaw = (datosInst && (datosInst as any).clave) ?? "";
     const safeClaveBase = String(claveRaw || "SINCLAVE").replace(/[^a-zA-Z0-9_-]/g, "");
     const safeClave = safeClaveBase || "SINCLAVE";
@@ -198,14 +199,35 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       firma_nombre: fileName,
     }));
 
-    (async () => {
+    setGuardandoFirma(true);
+    let firmaEnDispositivo = false;
+    try {
       try {
         await ensureInSandbox(dataUrl, fileName);
-        await saveCopyToGalleryFromBase64(base64Payload, baseFileName, { extension: ext });
+        firmaEnDispositivo = true;
       } catch (e) {
-        console.warn("Error al guardar la firma. Ya esta en sandbox /dif. Detalle:", e);
+        console.warn("Error al guardar la firma en el almacenamiento de la app:", e);
       }
-    })();
+
+      const firmaEnGaleria = await saveCopyToGalleryFromBase64(
+        base64Payload,
+        baseFileName,
+        { extension: ext }
+      );
+
+      if (!firmaEnGaleria) {
+        presentAlert({
+          header: "No se guardo en galeria",
+          message: firmaEnDispositivo
+            ? "La firma quedo guardada en la app, pero no se pudo copiar a la galeria."
+            : "No se pudo guardar la firma en el dispositivo ni en la galeria.",
+          cssClass: "alert-android",
+          buttons: ["Ok"],
+        });
+      }
+    } finally {
+      setGuardandoFirma(false);
+    }
   };
 
   // Rellenar con valor máximo
@@ -275,7 +297,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
 
   // ---------- guardar productos ----------
   const guardarProductos = async () => {
-    if (guardandoProductos) return;
+    if (guardandoProductos || guardandoFirma) return;
 
     if (numImagenes < 2) {
       presentAlert({
@@ -512,6 +534,7 @@ export const useInstitucion = (institucionData: any, instId: string) => {
     imagenesGuardadas,
     firmaPreview,
     numImagenes,
+    guardandoFirma,
     guardandoProductos,
     cargarImagenesGuardadas,
     llenarMaximo,

@@ -322,6 +322,25 @@ const Home: React.FC = () => {
     });
   };
 
+  const validarRespuestaSubida = async (response: Response, tipo: string) => {
+    const body = await response.text();
+    let result: any;
+    try {
+      result = body ? JSON.parse(body) : null;
+    } catch {
+      result = null;
+    }
+
+    if (!response.ok || result?.error === true || result?.error === "true") {
+      const message = result?.mensaje || result?.message || body || response.statusText;
+      throw new Error(`Error subiendo ${tipo}${response.status ? ` (${response.status})` : ""}: ${message}`);
+    }
+
+    if (!result || (result.error !== false && result.error !== "false")) {
+      throw new Error(`Respuesta inesperada del servidor al subir ${tipo}: ${body || response.statusText}`);
+    }
+  };
+
   const base64ToBlob = (base64: string, contentType: string) => {
     const binary = atob(base64);
     const chunks: Uint8Array[] = [];
@@ -392,10 +411,7 @@ const Home: React.FC = () => {
             `${URL_SERVICIOS}usuario/subir_imagenes/${inst_id}`,
             { method: "POST", body: fd }
           );
-          if (!resp.ok) {
-            const text = await resp.text();
-            throw new Error(`Error ${resp.status}: ${text}`);
-          }
+          await validarRespuestaSubida(resp, `imagen de ${inst_id}`);
 
           item.imagenes.shift();
           await guardarColaImagenes(queue);
@@ -422,18 +438,13 @@ const Home: React.FC = () => {
 
           const fdFirma = new FormData();
           fdFirma.append("file", blob, firmaUploadName);
-          fdFirma.append("firmaBase64", firma); // importante para PHP
-          fdFirma.append("inst_id", inst_id); // también necesario en backend
 
           const respFirma = await fetch(`${URL_SERVICIOS}usuario/subir_imagenes/${inst_id}`, {
             method: "POST",
             body: fdFirma,
           });
 
-          if (!respFirma.ok) {
-            const text = await respFirma.text();
-            throw new Error(`Error subiendo firma: ${text}`);
-          }
+          await validarRespuestaSubida(respFirma, `firma de ${inst_id}`);
         }
 
         queue.splice(itemIndex, 1);

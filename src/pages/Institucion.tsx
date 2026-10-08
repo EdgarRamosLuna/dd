@@ -48,6 +48,7 @@ const Institucion: React.FC = () => {
     alertMessage,
     firmaPreview,
     handleGuardarFirma,
+    guardandoFirma,
     guardandoProductos,
   } = useInstitucion(institucionData, id);
 
@@ -261,9 +262,9 @@ const Institucion: React.FC = () => {
             <IonButton
               className="btnGuardarProductos"
               onClick={guardarProductos}
-              disabled={guardandoProductos}
+              disabled={guardandoProductos || guardandoFirma}
             >
-              {guardandoProductos ? "Guardando..." : "Guardar"}
+              {guardandoFirma ? "Guardando firma..." : guardandoProductos ? "Guardando..." : "Guardar"}
             </IonButton>
           </div>
         )}
