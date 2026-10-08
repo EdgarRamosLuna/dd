@@ -1,6 +1,7 @@
 ﻿// src/utils/files.ts
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Media } from "@capacitor-community/media";
+import { Capacitor } from "@capacitor/core";
 
 const DIF_DIR = "dif";
 
@@ -126,51 +127,55 @@ export async function saveCopyToGalleryFromBase64(
   try {
     const albumName = options.albumName ?? "DIF";
     const normalizedExt = (options.extension || "jpg").replace(/^\.+/, "").toLowerCase();
-    const sanitizedBase = (fileNameBase || "foto").replace(/\.[a-z0-9]+$/gi, "");
-    const finalFileName = `${sanitizedBase || "foto"}.${normalizedExt || "jpg"}`;
+    const finalFileName = (fileNameBase || "foto").replace(/\.[a-z0-9]+$/gi, "") || "foto";
     const mime = normalizedExt === "jpg" ? "jpeg" : normalizedExt;
 
-    // 1) perms (el plugin devuelve { photos: 'granted'|'denied' ... })
-    let perm: any = undefined;
-    if (typeof (Media as any).checkPermissions === "function") {
-      perm = await (Media as any).checkPermissions();
-    }
-    if (!perm || perm.photos !== "granted") {
-      if (typeof (Media as any).requestPermissions === "function") {
-        const req = await (Media as any).requestPermissions({ permissions: ["photos"] });
-        if (!req || req.photos !== "granted") return false;
-      }
-    }
-
-    // 2) data URL
     const dataUrl = base64Payload.startsWith("data:")
       ? base64Payload
       : `data:image/${mime};base64,${base64Payload}`;
 
-    // 3) garantiza album y obtiene identifier
-    try {
-      if (typeof (Media as any).createAlbum === "function") {
-        await (Media as any).createAlbum({ name: albumName });
-      }
-    } catch { /* ya existe */ }
-
     let albumIdentifier: string | undefined = undefined;
-    try {
-      const res: any = await (Media as any).getAlbums();
-      const dif = (res?.albums || []).find((a: any) => a?.name === albumName);
-      albumIdentifier = dif?.identifier;
-    } catch { /* continua sin identifier */ }
+    if (Capacitor.getPlatform() === "android") {
+      const { path } = await Media.getAlbumsPath();
+      if (!path) throw new Error("Media.getAlbumsPath devolvio una ruta vacia");
 
-    // 4) guarda en galeria (evita propiedades no tipadas)
-    const opts: any = { path: dataUrl };
-    if (albumIdentifier) opts.albumIdentifier = albumIdentifier;
-    // Si tu version del plugin soporta fileName, se lo pasamos; si no, lo ignora.
-    opts.fileName = finalFileName;
+      try {
+        await Media.createAlbum({ name: albumName });
+      } catch (error) {
+        // El plugin responde con error cuando el album ya existia.
+        if (!String((error as any)?.message || error).toLowerCase().includes("already exists")) {
+          throw error;
+        }
+      }
 
-    await (Media as any).savePhoto(opts);
+      albumIdentifier = `${path.replace(/\\+$/, "")}/${albumName}`;
+    } else {
+      try {
+        await Media.createAlbum({ name: albumName });
+      } catch (error) {
+        if (!String((error as any)?.message || error).toLowerCase().includes("already exists")) {
+          throw error;
+        }
+      }
+
+      const { albums } = await Media.getAlbums();
+      albumIdentifier = albums.find((album) => album.name === albumName)?.identifier;
+      if (!albumIdentifier && Capacitor.getPlatform() === "ios") {
+        // iOS permite guardar en la fototeca sin seleccionar un album.
+        albumIdentifier = undefined;
+      } else if (!albumIdentifier) {
+        throw new Error(`No se encontro el identificador del album ${albumName}`);
+      }
+    }
+
+    await Media.savePhoto({
+      path: dataUrl,
+      albumIdentifier,
+      fileName: finalFileName,
+    });
     return true;
   } catch (err) {
-    console.warn("[files] saveCopyToGalleryFromBase64:", err);
+    console.error("[files] No se pudo copiar el archivo a la galeria:", err);
     return false;
   }
 }
