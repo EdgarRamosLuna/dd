@@ -261,7 +261,6 @@ export const useInstitucion = (institucionData: any, instId: string) => {
       allowEditing: false,
       resultType: CameraResultType.Uri,
       source: CameraSource.Camera,
-      saveToGallery: true,
       correctOrientation: true,
     });
 
