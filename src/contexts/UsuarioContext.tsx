@@ -6,14 +6,9 @@ import React, {
     useCallback,
     useContext
   } from 'react';
-  import axios from 'axios';
   import { Preferences } from '@capacitor/preferences';
-  import {
-    API_TIMEOUTS,
-    FORM_URLENCODED_HEADERS,
-    URL_SERVICIOS,
-    buildFormBody
-  } from '../config/api';
+  import { API_TIMEOUTS } from '../config/api';
+  import { postForm } from '../services/apiClient';
 
   interface UsuarioContextProps {
     idUsuario: string | null;
@@ -78,18 +73,10 @@ import React, {
       setError(null);
   
       try {
-        const formData = buildFormBody({
+        const data = await postForm<any>('usuario/login', {
           usuario: usuarioInput,
           contrasena
-        });
-  
-        const url = `${URL_SERVICIOS}usuario/login`;
-        const response = await axios.post(url, formData, {
-          timeout: API_TIMEOUTS.LOGIN,
-          headers: FORM_URLENCODED_HEADERS
-        });
-  
-        const data = response.data;
+        }, API_TIMEOUTS.LOGIN);
   
         if (data.error) {
           setError(data.mensaje || 'Error desconocido');

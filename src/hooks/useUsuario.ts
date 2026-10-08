@@ -1,13 +1,8 @@
 // src/hooks/useUsuario.ts
 import { useState, useCallback } from 'react';
-import axios from 'axios';
 import { Preferences } from '@capacitor/preferences';
-import {
-  API_TIMEOUTS,
-  FORM_URLENCODED_HEADERS,
-  URL_SERVICIOS,
-  buildFormBody
-} from '../config/api';
+import { API_TIMEOUTS } from '../config/api';
+import { postForm } from '../services/apiClient';
 
 interface LoginResponse {
   error: boolean;
@@ -48,19 +43,10 @@ export const useUsuario = () => {
     setError(null);
     
     try {
-      const formData = buildFormBody({
+      const data = await postForm<LoginResponse>('usuario/login', {
         usuario: usuarioInput,
         contrasena
-      });
-      
-      // Configurar timeout
-      const url = `${URL_SERVICIOS}usuario/login`;
-      const response = await axios.post<LoginResponse>(url, formData, {
-        timeout: API_TIMEOUTS.LOGIN,
-        headers: FORM_URLENCODED_HEADERS
-      });
-      
-      const data = response.data;
+      }, API_TIMEOUTS.LOGIN);
       
       if (data.error) {
         setError(data.mensaje || 'Error desconocido');

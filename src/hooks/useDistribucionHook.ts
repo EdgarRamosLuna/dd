@@ -1,13 +1,8 @@
 // src/hooks/useDistribucion.ts
 import { useState, useCallback, useEffect } from "react";
-import axios from "axios";
 import { Preferences } from "@capacitor/preferences";
-import {
-  API_TIMEOUTS,
-  FORM_URLENCODED_HEADERS,
-  URL_SERVICIOS,
-  buildFormBody
-} from "../config/api";
+import { API_TIMEOUTS } from "../config/api";
+import { postForm } from "../services/apiClient";
 import { useDistribucion } from "../contexts/DistribucionContext";
 import { useLocation } from "react-router";
 
@@ -47,17 +42,9 @@ export const useDistribucionHook = () => {
     setError(null);
 
     try {
-      const formData = buildFormBody({
+      const data = await postForm<DistribucionData>("usuario/get_ruta", {
         usuario_id: usuarioId
-      });
-
-      const url = `${URL_SERVICIOS}usuario/get_ruta`;
-      const response = await axios.post<DistribucionData>(url, formData, {
-        timeout: API_TIMEOUTS.DISTRIBUCION,
-        headers: FORM_URLENCODED_HEADERS,
-      });
-
-      const data = response.data;
+      }, API_TIMEOUTS.DISTRIBUCION);
 
       if (data.error) {
         setError(data.mensaje || "Error desconocido");
@@ -99,18 +86,10 @@ export const useDistribucionHook = () => {
       setError(null);
 
       try {
-        const formData = buildFormBody({
+        const data = await postForm<DistribucionData>("usuario/subirDatosDist", {
           usuario_id: usuarioId,
           datosDist: JSON.stringify(datosDist)
-        });
-
-        const url = `${URL_SERVICIOS}usuario/subirDatosDist`;
-        const response = await axios.post<DistribucionData>(url, formData, {
-          timeout: API_TIMEOUTS.DISTRIBUCION,
-          headers: FORM_URLENCODED_HEADERS,
-        });
-
-        const data = response.data;
+        }, API_TIMEOUTS.DISTRIBUCION);
 
         if (data.error) {
           setError(data.mensaje || "Error desconocido");
