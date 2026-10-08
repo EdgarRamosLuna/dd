@@ -2,7 +2,12 @@
 import { useState, useCallback, useEffect } from "react";
 import axios from "axios";
 import { Preferences } from "@capacitor/preferences";
-import { URL_SERVICIOS } from "../config/api";
+import {
+  API_TIMEOUTS,
+  FORM_URLENCODED_HEADERS,
+  URL_SERVICIOS,
+  buildFormBody
+} from "../config/api";
 import { useDistribucion } from "../contexts/DistribucionContext";
 import { useLocation } from "react-router";
 
@@ -42,16 +47,14 @@ export const useDistribucionHook = () => {
     setError(null);
 
     try {
-      // Crear FormData para enviar los datos
-      const formData = new FormData();
-      formData.append("usuario_id", usuarioId);
+      const formData = buildFormBody({
+        usuario_id: usuarioId
+      });
 
       const url = `${URL_SERVICIOS}usuario/get_ruta`;
       const response = await axios.post<DistribucionData>(url, formData, {
-        timeout: 60000,
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+        timeout: API_TIMEOUTS.DISTRIBUCION,
+        headers: FORM_URLENCODED_HEADERS,
       });
 
       const data = response.data;
@@ -96,17 +99,15 @@ export const useDistribucionHook = () => {
       setError(null);
 
       try {
-        // Crear FormData para enviar los datos
-        const formData = new FormData();
-        formData.append("usuario_id", usuarioId);
-        formData.append("datosDist", JSON.stringify(datosDist));
+        const formData = buildFormBody({
+          usuario_id: usuarioId,
+          datosDist: JSON.stringify(datosDist)
+        });
 
         const url = `${URL_SERVICIOS}usuario/subirDatosDist`;
         const response = await axios.post<DistribucionData>(url, formData, {
-          timeout: 60000,
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
+          timeout: API_TIMEOUTS.DISTRIBUCION,
+          headers: FORM_URLENCODED_HEADERS,
         });
 
         const data = response.data;

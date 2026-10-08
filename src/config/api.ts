@@ -14,12 +14,30 @@ export const API_CONFIG = {
     // IMAGES_URL: "http://192.168.1.69:8888/TakeEatEasy3/files/cropped/",
     // IMAGES_PROD_URL: "https://dobleslash.com/TakeEatEasy3/files/cropped/",
   };
-  
+
+  export const API_TIMEOUTS = {
+    LOGIN: 20000,
+    DISTRIBUCION: 60000,
+  };
+
+  export const FORM_URLENCODED_HEADERS = {
+    "Content-Type": "application/x-www-form-urlencoded",
+  };
+
+  export const buildFormBody = (values: Record<string, string>): URLSearchParams => {
+    const body = new URLSearchParams();
+
+    Object.entries(values).forEach(([key, value]) => {
+      body.append(key, value);
+    });
+
+    return body;
+  };
+
   // Función auxiliar para construir URLs completas
   export const buildUrl = (endpoint: string): string => {
     return `${API_CONFIG.BASE_URL}${endpoint}`;
   };
-  
+
   // Exportación directa para compatibilidad con código existente
   export const URL_SERVICIOS = API_CONFIG.BASE_URL;
-  

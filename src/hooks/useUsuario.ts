@@ -2,7 +2,12 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
 import { Preferences } from '@capacitor/preferences';
-import { URL_SERVICIOS } from '../config/api';
+import {
+  API_TIMEOUTS,
+  FORM_URLENCODED_HEADERS,
+  URL_SERVICIOS,
+  buildFormBody
+} from '../config/api';
 
 interface LoginResponse {
   error: boolean;
@@ -43,18 +48,16 @@ export const useUsuario = () => {
     setError(null);
     
     try {
-      // Crear FormData para enviar los datos (equivalente a URLSearchParams)
-      const formData = new FormData();
-      formData.append('usuario', usuarioInput);
-      formData.append('contrasena', contrasena);
+      const formData = buildFormBody({
+        usuario: usuarioInput,
+        contrasena
+      });
       
       // Configurar timeout
       const url = `${URL_SERVICIOS}usuario/login`;
       const response = await axios.post<LoginResponse>(url, formData, {
-        timeout: 8000,
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        timeout: API_TIMEOUTS.LOGIN,
+        headers: FORM_URLENCODED_HEADERS
       });
       
       const data = response.data;
@@ -79,6 +82,13 @@ export const useUsuario = () => {
         return data;
       }
     } catch (err: any) {
+      console.error('Error al iniciar sesión:', {
+        code: err?.code,
+        message: err?.message,
+        status: err?.response?.status,
+        data: err?.response?.data
+      });
+
       // Manejar errores de red o timeout
       const errorMessage = err.code === 'ECONNABORTED' 
         ? 'Tiempo de espera agotado. Verifica tu conexión.' 

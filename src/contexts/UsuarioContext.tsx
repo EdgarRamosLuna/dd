@@ -8,8 +8,13 @@ import React, {
   } from 'react';
   import axios from 'axios';
   import { Preferences } from '@capacitor/preferences';
-  import { URL_SERVICIOS } from '../config/api';
-  
+  import {
+    API_TIMEOUTS,
+    FORM_URLENCODED_HEADERS,
+    URL_SERVICIOS,
+    buildFormBody
+  } from '../config/api';
+
   interface UsuarioContextProps {
     idUsuario: string | null;
     usuario: string;
@@ -22,7 +27,7 @@ import React, {
     cargarDatosUsuario: () => Promise<void>;
     setidUsuario: (id: string | null) => void;
   }
-  
+
   const UsuarioContext = createContext<UsuarioContextProps | undefined>(undefined);
   
   export const UsuarioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -73,17 +78,15 @@ import React, {
       setError(null);
   
       try {
-        // Crear FormData para enviar los datos
-        const formData = new FormData();
-        formData.append('usuario', usuarioInput);
-        formData.append('contrasena', contrasena);
+        const formData = buildFormBody({
+          usuario: usuarioInput,
+          contrasena
+        });
   
         const url = `${URL_SERVICIOS}usuario/login`;
         const response = await axios.post(url, formData, {
-          timeout: 8000,
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          }
+          timeout: API_TIMEOUTS.LOGIN,
+          headers: FORM_URLENCODED_HEADERS
         });
   
         const data = response.data;
@@ -109,6 +112,13 @@ import React, {
           return data;
         }
       } catch (err: any) {
+        console.error('Error al iniciar sesión:', {
+          code: err?.code,
+          message: err?.message,
+          status: err?.response?.status,
+          data: err?.response?.data
+        });
+
         const errorMessage = err.code === 'ECONNABORTED'
           ? 'Tiempo de espera agotado. Verifica tu conexión.'
           : 'Error de conexión';
@@ -151,7 +161,6 @@ import React, {
       </UsuarioContext.Provider>
     );
   };
-  
   export const useUsuario = () => {
     const context = useContext(UsuarioContext);
     if (!context) {
@@ -159,4 +168,3 @@ import React, {
     }
     return context;
   };
-  
